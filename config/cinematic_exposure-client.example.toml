@@ -1,0 +1,7 @@
+[animations]
+camera = true
+lightroom = true
+# Range: 0.25 ~ 3.0
+speed = 1.0
+# Applied on next GUI initialization; scaled width >= 440.
+dockGui = true

@@ -1,0 +1,48 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+version = mod_version
+group = 'io.github.donquijotee.cinematic_exposure'
+base { archivesName = 'cinematic-exposure-1.21.1-neoforge' }
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+neoForge {
+    version = neo_version
+    mods { cinematic_exposure { sourceSet sourceSets.main } }
+}
+// Deliberately no runClient/runServer configuration: this project is built without launching Minecraft.
+repositories { maven { url = 'https://api.modrinth.com/maven' } }
+def cinematicJar = layout.buildDirectory.file('dependencies/CinematicInteraction-0.18.12-NeoForge-1.21.1.jar')
+tasks.register('downloadCinematic') {
+    outputs.file(cinematicJar)
+    doLast {
+        def target = cinematicJar.get().asFile
+        target.parentFile.mkdirs()
+        def url = new URI('https://github.com/dcvke/CinematicInteractions/releases/download/v0.18.12-neoforge-1.21.1/CinematicInteraction-0.18.12-NeoForge-1.21.1.jar').toURL()
+        url.openConnection().with { connection ->
+            connection.connectTimeout = 30000
+            connection.readTimeout = 60000
+            connection.setRequestProperty('User-Agent', 'CinematicExposure-build/0.1.0')
+            connection.inputStream.withCloseable { source -> target.withOutputStream { it << source } }
+        }
+        def digest = java.security.MessageDigest.getInstance('SHA-256').digest(target.bytes).encodeHex().toString()
+        if (digest != 'f8593eff597be7616d109572d880da43c9699684964dba166b97f30bd1c52340') {
+            target.delete()
+            throw new GradleException('Cinematic Interactions release SHA-256 mismatch')
+        }
+    }
+}
+dependencies {
+    compileOnly files(cinematicJar).builtBy(tasks.named('downloadCinematic'))
+    compileOnly 'maven.modrinth:exposure:iBvaR6AK'
+}
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 21 }
+tasks.named('processResources') {
+    inputs.property('version', project.version)
+    filesMatching('META-INF/neoforge.mods.toml') { expand(version: project.version) }
+}
+tasks.named('jar') {
+    from('LICENSE', 'THIRD_PARTY_NOTICES.md')
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}

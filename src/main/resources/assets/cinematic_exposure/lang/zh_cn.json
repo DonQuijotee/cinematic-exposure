@@ -1,0 +1,8 @@
+{
+  "cinematic_exposure.configuration.title": "电影式摄影交互",
+  "cinematic_exposure.configuration.animations": "动画",
+  "cinematic_exposure.configuration.camera": "相机改装动画",
+  "cinematic_exposure.configuration.lightroom": "暗房冲印台动画",
+  "cinematic_exposure.configuration.speed": "动画播放速度",
+  "cinematic_exposure.configuration.dockGui": "将原有界面放在右侧"
+}

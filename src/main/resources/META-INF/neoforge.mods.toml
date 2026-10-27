@@ -1,0 +1,35 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+[[mods]]
+modId="cinematic_exposure"
+version="${version}"
+displayName="Cinematic Exposure"
+authors="Cinematic Exposure contributors"
+description='''First-person visual interactions for Exposure camera attachments and Lightroom.'''
+[[mixins]]
+config="cinematic_exposure.mixins.json"
+[[dependencies.cinematic_exposure]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.255,21.2)"
+ordering="NONE"
+side="BOTH"
+[[dependencies.cinematic_exposure]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1]"
+ordering="NONE"
+side="BOTH"
+[[dependencies.cinematic_exposure]]
+modId="cinematic"
+type="required"
+versionRange="[0.18.12,0.19)"
+ordering="AFTER"
+side="BOTH"
+[[dependencies.cinematic_exposure]]
+modId="exposure"
+type="required"
+versionRange="[1.9.19,1.10)"
+ordering="AFTER"
+side="BOTH"

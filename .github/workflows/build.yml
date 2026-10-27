@@ -1,0 +1,75 @@
+name: Build Cinematic Exposure
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: '成功构建后发布 v0.1.0-alpha 预发布版本'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build without launching Minecraft
+        shell: bash
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew build --stacktrace 2>&1 | tee gradle-build.log
+      - name: Check packaged metadata and resources
+        run: python3 tools/verify-artifact.py
+      - name: Upload installable mod
+        uses: actions/upload-artifact@v4
+        with:
+          name: cinematic-exposure-neoforge-1.21.1
+          path: build/libs/cinematic-exposure-1.21.1-neoforge-0.1.0-alpha.jar
+          if-no-files-found: error
+      - name: Preserve build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: gradle-build.log
+          if-no-files-found: warn
+
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.release && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: cinematic-exposure-neoforge-1.21.1
+          path: release
+      - name: Publish successful artifact as pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create v0.1.0-alpha \
+            release/cinematic-exposure-1.21.1-neoforge-0.1.0-alpha.jar \
+            --target "$GITHUB_SHA" \
+            --title "Cinematic Exposure v0.1.0-alpha" \
+            --notes-file docs/release-v0.1.0-alpha.md \
+            --prerelease
