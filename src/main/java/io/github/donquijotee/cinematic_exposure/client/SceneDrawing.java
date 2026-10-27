@@ -91,7 +91,9 @@ public final class SceneDrawing {
         Minecraft mc = Minecraft.getInstance();
         pose.pushPose();
         pose.translate(at.x - eye.x, at.y - eye.y, at.z - eye.z);
-        pose.mulPose(Axis.YP.rotationDegrees((float) Math.toDegrees(Math.atan2(-forward.x, forward.z)) + 180));
+        // Face the camera's lens toward the viewer, so the complete mounting action stays visible.
+        float turn = stack.getItem() instanceof CameraItem ? 0 : 180;
+        pose.mulPose(Axis.YP.rotationDegrees((float) Math.toDegrees(Math.atan2(-forward.x, forward.z)) + turn));
         pose.mulPose(Axis.XP.rotationDegrees(tilt));
         pose.mulPose(Axis.ZP.rotationDegrees(twist));
         pose.scale(scale, scale, scale);

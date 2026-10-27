@@ -313,9 +313,9 @@ public final class VisualSession {
     }
     public Vec3 socket(Motion.Kind kind) {
         if (camera) return switch (kind) {
-            case FILM -> local(-0.12, 0.015, -0.04);
-            case FLASH -> local(-0.225, 0, 0.045);
-            case LENS, FILTER -> local(0, 0, 0.26);
+            case FILM -> local(-0.12, 0.015, 0.04);
+            case FLASH -> local(0.225, 0, -0.045);
+            case LENS, FILTER -> local(0, 0, -0.26);
             default -> work;
         };
         return switch (kind) {
@@ -341,9 +341,18 @@ public final class VisualSession {
             target = travel.length() > 0.06 ? live.add(travel.normalize().scale(travel.length() - 0.06)) : live;
         }
         float k = (float) s.weight;
+        float targetYaw = s.desiredYaw;
+        float targetPitch = s.desiredPitch;
+        if (!s.camera) {
+            // Tethering can leave the camera beside the nominal front pose. Keep aiming at the real
+            // work area from the reachable position, rather than looking parallel to the table.
+            Vec3 aim = s.work.subtract(target);
+            targetYaw = yaw(aim) + framing();
+            targetPitch = (float) Math.toDegrees(Math.atan2(-aim.y, Math.hypot(aim.x, aim.z)));
+        }
         return new CameraRig.Pose(live.lerp(target, k),
-                yaw + Mth.wrapDegrees(s.desiredYaw - yaw) * k,
-                Mth.lerp(k, pitch, s.desiredPitch), 0);
+                yaw + Mth.wrapDegrees(targetYaw - yaw) * k,
+                Mth.lerp(k, pitch, targetPitch), 0);
     }
 
     public static Vec3 direction(float yaw) {
