@@ -6,12 +6,14 @@
   "client": [
     "CameraMixin",
     "HandsInvoker",
-    "ContainerScreenAccessor",
     "InventoryClickMixin",
     "MenuSyncMixin",
-    "ScreenBackdropMixin"
+    "AddonAvailabilityMixin"
   ],
   "injectors": {
     "defaultRequire": 1
-  }
+  },
+  "mixins": [
+    "LightroomMenuProviderMixin"
+  ]
 }

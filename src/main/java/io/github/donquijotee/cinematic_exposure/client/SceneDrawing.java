@@ -46,6 +46,10 @@ public final class SceneDrawing {
                 leftHand = leftHand.lerp(session.local(-0.12, 0.04, 0.03), hold);
             }
         }
+        if (motion == null && mc.screen instanceof CameraSceneScreen screen) {
+            int slot = screen.hoveredAttachment();
+            if (slot >= 0 && slot < screen.getMenu().slots.size()-36) rightHand = session.socket(screen.kind(slot));
+        }
         leftHand = leftShoulder.add(facing.scale(0.08)).lerp(leftHand, weight);
         rightHand = rightShoulder.add(facing.scale(0.08)).lerp(rightHand, weight);
         leftHand = session.smooth(false, leftHand);
@@ -81,6 +85,9 @@ public final class SceneDrawing {
             float tilt = motion.kind == Motion.Kind.PHOTO ? 75 : motion.kind == Motion.Kind.FILM ? 10 : 0;
             item(pose, buffers, eye, motion.item, held, session.forward,
                     (float) (0.22 * weight), tilt, motion.twist(), light);
+        }
+        if (motion == null && mc.screen instanceof CameraSceneScreen screen && !screen.getMenu().getCarried().isEmpty()) {
+            item(pose,buffers,eye,screen.getMenu().getCarried(),rightHand,session.forward,0.22f,0,0,light);
         }
         buffers.endBatch();
     }

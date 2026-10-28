@@ -92,19 +92,12 @@ public final class VisualSession {
     public static boolean supports(Screen screen) {
         var player = Minecraft.getInstance().player;
         if (player == null) return false;
-        return screen instanceof LightroomScreen l && ClientConfig.LIGHTROOM.get()
-                    && l.getMenu() == player.containerMenu
-                    && !l.getMenu().getBlockEntity().isRemoved()
-                    && l.getMenu().getBlockEntity().getBlockState().hasProperty(LightroomBlock.FACING)
-                || screen instanceof CameraAttachmentsScreen c
-                    && c.getMenu() == player.containerMenu
-                    && c.getMenu() instanceof CameraInHandAttachmentsMenu && ClientConfig.CAMERA.get()
-                    && c.getMenu().getCamera().getStack().getItem() instanceof CameraItem;
+        return screen instanceof CameraSceneScreen c && ClientConfig.CAMERA.get()
+                && c.getMenu() == player.containerMenu
+                && c.getMenu().getCamera().getStack().getItem() instanceof CameraItem;
     }
 
-    private static float framing() {
-        return ClientConfig.DOCK_GUI.get() && Minecraft.getInstance().getWindow().getGuiScaledWidth() >= 440 ? 19 : 0;
-    }
+    private static float framing() { return 0; }
 
     public static VisualSession get() { return current; }
 
@@ -124,7 +117,7 @@ public final class VisualSession {
         boolean supported = supports(mc.screen);
         if (current != null && supported && current.menu != mc.player.containerMenu) current = null;
         if (current == null && supported) {
-            current = new VisualSession(mc.player.containerMenu, mc.screen instanceof CameraAttachmentsScreen);
+            current = new VisualSession(mc.player.containerMenu, mc.screen instanceof CameraSceneScreen);
         }
         if (current == null) return;
         VisualSession s = current;

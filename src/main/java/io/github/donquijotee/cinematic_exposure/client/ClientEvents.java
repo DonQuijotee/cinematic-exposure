@@ -2,7 +2,6 @@ package io.github.donquijotee.cinematic_exposure.client;
 
 import io.github.donquijotee.cinematic_exposure.CinematicExposure;
 import io.github.donquijotee.cinematic_exposure.ClientConfig;
-import io.github.donquijotee.cinematic_exposure.mixin.ContainerScreenAccessor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.neoforged.api.distmarker.Dist;
@@ -44,18 +43,12 @@ public final class ClientEvents {
         }
     }
 
-    @SubscribeEvent(priority = EventPriority.LOWEST)
-    public static void init(ScreenEvent.Init.Post event) {
-        var screen = event.getScreen();
-        if (!ClientConfig.DOCK_GUI.get() || !VisualSession.supports(screen)
-                || screen.width < 440 || !(screen instanceof AbstractContainerScreen<?>)) return;
-        ContainerScreenAccessor access = (ContainerScreenAccessor) screen;
-        int target = screen.width - access.cinematicExposure$width() - 22;
-        int delta = target - access.cinematicExposure$left();
-        access.cinematicExposure$left(target);
-        // Subclass widgets have already been created using the original origin. Move them by the same amount.
-        for (var child : screen.children()) {
-            if (child instanceof AbstractWidget widget) widget.setX(widget.getX() + delta);
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public static void opening(ScreenEvent.Opening event) {
+        if (ClientConfig.CAMERA.get() && event.getNewScreen() instanceof
+                io.github.mortuusars.exposure.client.gui.screen.camera.CameraAttachmentsScreen screen
+                && screen.getMenu() instanceof io.github.mortuusars.exposure.world.inventory.CameraInHandAttachmentsMenu menu) {
+            event.setNewScreen(new CameraSceneScreen(menu));
         }
     }
 }

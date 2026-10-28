@@ -4,5 +4,21 @@
   "cinematic_exposure.configuration.camera": "Camera attachments",
   "cinematic_exposure.configuration.lightroom": "Lightroom",
   "cinematic_exposure.configuration.speed": "Animation speed",
-  "cinematic_exposure.configuration.dockGui": "Place original GUI on the right"
+  "cinematic_exposure.target.film": "Film",
+  "cinematic_exposure.target.flash": "Flash",
+  "cinematic_exposure.target.lens": "Lens",
+  "cinematic_exposure.target.filter": "Filter",
+  "cinematic_exposure.target.paper": "Paper",
+  "cinematic_exposure.target.cyan": "Cyan",
+  "cinematic_exposure.target.magenta": "Magenta",
+  "cinematic_exposure.target.yellow": "Yellow",
+  "cinematic_exposure.target.black": "Black",
+  "cinematic_exposure.target.photo": "Photograph",
+  "cinematic_exposure.target.print": "Print",
+  "cinematic_exposure.target.previous": "Previous",
+  "cinematic_exposure.target.next": "Next",
+  "cinematic_exposure.target.process": "Process",
+  "cinematic_exposure.camera.title": "Camera attachments",
+  "cinematic_exposure.camera.hint": "Pick an attachment from inventory, then click its camera mount. Shift-click: quick move. Esc: leave.",
+  "cinematic_exposure.lightroom.hint": "Click the work surface to place or take; click Print. Shift-Print: creative. Esc: leave."
 }

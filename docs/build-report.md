@@ -1,3 +1,14 @@
+# v0.2.0-alpha 编译记录
+
+本次在完整 Java 21 环境运行 Gradle Wrapper build --stacktrace，通过云代理助手保留 TLS 校验。结果 BUILD SUCCESSFUL；随后 tools/verify-artifact.py 静态打包检查通过。
+
+新增的 LightroomStation、CameraSceneScreen、AddonAvailabilityMixin 与公共 LightroomMenuProviderMixin 均编译通过。未运行 Minecraft、客户端、服务器、游戏内或多人测试。公共 Mixin 只适配原菜单 Provider 与 BlockPos；其他渲染兼容 Mixin 保持客户端加载。
+
+GitHub Actions 保存实际构建日志，发布任务只上传成功构建产物。
+
+---
+以下为 v0.1.0-alpha 的历史记录（原 GUI 保留方案已在 v0.2 替换）：
+
 # 编译与静态检查记录
 
 日期：2026-10-28（Asia/Shanghai）。

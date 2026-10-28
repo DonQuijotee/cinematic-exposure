@@ -1,88 +1,53 @@
 # Cinematic Exposure
 
-为 **Minecraft 1.21.1 / NeoForge** 提供 Exposure 相机改装与 Lightroom 第一人称视觉交互的独立附属模组。
+Minecraft 1.21.1 / NeoForge 独立附属。**v0.2.0-alpha 改为场景操作，替换 v0.1 的“原 GUI 加双手背景”方案。尚未进行游戏内测试。**
 
-**Alpha，尚未经游戏内测试。** 编译通过不代表游戏内效果或兼容性已经验证。本项目没有启动 Minecraft 客户端、服务器或游戏内自动化测试。
+依赖 Java 21、NeoForge 21.1.255、Cinematic Interactions 0.18.12、Exposure 1.9.19。依赖不打包。
 
-## 安装
+## 暗房
 
-需要 Java 21，以及以下模组：
+Lightroom 使用 Cinematic 正式 `AddonStations` / `AddonScenes` / `AddonMenuStation` API，参照宿主 SmithingStation 和官方附属示例：由宿主处理走近工作台、抵达后俯身、相机与双手过渡、库存抽屉、退出及服务器会话。镜头目标为台面前方 0.70 格、上方 0.62 格，俯角 40°；不再受旧独立适配器的 0.35 格位移限制。
 
-| 依赖 | 本项目构建基线 |
-| --- | --- |
-| Minecraft | 1.21.1 |
-| NeoForge | 21.1.255 |
-| [Cinematic Interactions](https://github.com/dcvke/CinematicInteractions/releases/tag/v0.18.12-neoforge-1.21.1) | 0.18.12，NeoForge 1.21.1 版本 |
-| [Exposure](https://modrinth.com/mod/exposure/version/iBvaR6AK) | 1.9.19，NeoForge 1.21.1 版本 |
+从宿主库存抽屉选择物品，再点击台面标注的胶卷、相纸、染料位置放入；点击成品拿取照片。台面后排提供冲印、上一帧、下一帧、流程切换。Shift 点击冲印使用 Exposure 原有创造冲印请求，权限和材料仍由 Exposure 校验。照片预览由 Exposure 原有图像系统渲染在画面右下方。
 
-将上述依赖和 `cinematic-exposure-1.21.1-neoforge-0.1.0-alpha.jar` 放入游戏 `mods/`。依赖不内嵌。本附属的动作与渲染仅在客户端运行，元数据按 Cinematic API 文档将两个原模组声明为双方必需依赖。其他补丁版本未验证。
+胶卷装卸、实际冲印开始和照片取出跟随真实容器状态，冲印时右手按压、左手扶纸。新状态可中断旧动作。照片堆数量使用 Exposure 的组件数据读取。
 
-## 已编写的功能
+**多人服务器需要同时更新本附属和依赖。** Lightroom 的场景注册在两端执行。原方块没有标准 getMenuProvider 开放入口，且客户端菜单构造需要方块坐标，因此增加一个仅针对 Lightroom 的 MenuProvider 适配器：委托原方块实体 createMenu，并通过 NeoForge 标准菜单附加数据写入原坐标。没有替换照片生成、配方、消耗或容器协议。
 
-- **Lightroom 优先接入**：打开原界面时平滑靠近工作区，双手落到台面；胶卷装卸、同步冲印开始时的按压与扶纸动作、成品照片取出动作；识别照片堆组件内的数量变化。
-- **手持相机改装**：原改装窗口打开时显示 Exposure 原相机模型，左手托机、右手操作；支持实际存在的胶卷、闪光灯、镜头、滤镜。镜头动作包含拿起、对准、旋转、松手，拆卸反向播放。
-- 复用 Cinematic 的玩家皮肤与袖层手臂绘制，使用缓入缓出和手部平滑跟随；镜头位移受距离限制与碰撞射线约束。
-- 关闭、预览/帮助子窗口、切换容器、配置关闭、无效相机、方块移除、切换世界或视角等情况可以中断。正常退出平滑恢复；死亡、离开世界或宿主场景接管时立即释放。
-- Exposure 原容器、全部按钮、快捷移动、配方、照片预览、消耗和网络路径继续工作。缩放后宽度至少 440 时，默认将完整原窗口及其按钮一起移到右边，左边显示动画；保留原槽位与鼠标命中计算。窄屏保持原窗口居中。
+蹲下使用、关闭暗房场景、无法抵达工作面时，按 Cinematic 原有规则回退到 Exposure 原窗口。这是宿主的安全回退，不是正常场景显示方式。
 
-不包含举放相机、快门、取景器、相机支架、自拍倒计时或其他工作站。第三人称下保留原界面，不启动第一人称场景。
+## 相机改装
 
-## 状态同步与边界
+打开手持相机改装后显示透明场景，不显示 Exposure 原改装面板。左手托住原相机模型；从下方库存区拿起物品，点击机身上的胶卷、闪光灯、镜头、滤镜标记操作。右手跟随目标、持有附件，镜头安装包含对准与旋转。Shift 点击快速移动，Esc 或背包键退出。
 
-动画观察原 GUI 使用的真实 Menu 状态，包括原版客户端预测以及 Exposure/原版收到的同步数据。它不发送、延迟、重放任何点击，不执行附件写回、配方、照片生成或物品消耗。普通冲印跟随 `LightroomMenu.isPrinting()` 的同步状态，瞬时/创造冲印跟随结果增加；单纯点击未获准的冲印按钮不制造成功动作。
-
-模型使用独立 `ItemStack.copy()` 快照。为避免安装时镜头同时出现在机身与右手中，**只在渲染副本上**暂时隐藏/显示相应模型组件；此副本不会交给容器或网络，不改变实际附件数据或数量。
-
-初始内容建立基线，不回放已有物品；整包同步纠正会清除未完成动作并重建基线。同一槽位的新变化可替换旧视觉动作，手部平滑回接。动画队列有上限；高频操作优先跟随最新状态，而不积压过时动作。动画不阻塞真实 GUI 操作。
+库存区与场景点击均发送原版容器点击，使用 Exposure 原 Menu 的槽位规则。该界面不实现原版 GUI 的拖拽分配、双击收集及数字键换槽；使用普通左右键和 Shift 点击。相机支架不在范围内。
 
 ## 配置
 
-游戏首次加载生成 `config/cinematic_exposure-client.toml`，也可通过 NeoForge 模组配置界面修改。示例见 [config/cinematic_exposure-client.example.toml](config/cinematic_exposure-client.example.toml)。
+`config/cinematic_exposure-client.toml`，也可用 NeoForge 配置界面：
 
 ```toml
 [animations]
 camera = true
 lightroom = true
 speed = 1.0
-# 宽屏时原窗口右置，下次界面初始化时生效。
-dockGui = true
 ```
 
-`speed` 范围为 0.25–3.0，同时影响手部动作和进出镜头速度。提供简体中文、英语配置语言文件。
+速度范围 0.25–3.0，控制附件/冲印手部动作和相机改装进出速度。暗房的走近与镜头过渡遵循 Cinematic 宿主设置。旧 `dockGui` 配置已移除。
 
-## 构建
+## 构建与发布
 
-完整 **JDK 21**（包含 javac）和联网环境：
+完整 JDK 21：
 
 ```sh
 ./gradlew build --stacktrace
+python3 tools/verify-artifact.py
 ```
 
-Windows 使用 `gradlew.bat build --stacktrace`。Wrapper 固定 Gradle 8.8，校验官方发行包 SHA-256。构建通过官方 Maven 仓库获得 NeoForge，通过 Modrinth 版本 ID 固定 Exposure，并自动下载和校验 Cinematic 0.18.12 官方发布 JAR 的 SHA-256。无需手动收集依赖，不使用伪造依赖，不禁用 TLS。
+代理云环境可用 `python3 tools/cloud-build.py build --stacktrace`，保留 TLS 校验。产物为 `build/libs/cinematic-exposure-1.21.1-neoforge-0.2.0-alpha.jar`。
 
-若云环境只有 HTTP(S) 代理、Java 不自动读取代理变量，可使用随附助手（仍验证 TLS）：
+GitHub Actions 支持 push、PR 和手动构建。手动启用 release 后，仅在构建与打包检查成功时发布 v0.2.0-alpha Pre-release，并上传同次构建的 JAR。不会覆盖 v0.1.0-alpha。
 
-```sh
-python3 tools/cloud-build.py build --stacktrace
-```
+没有启动 Minecraft 客户端或服务器。需要玩家验证台面拾取范围、镜头构图、手部/物品穿模、预览与库存抽屉布局、光影及多人同步。默认皮肤/模型之外的资源包可能需要进一步调位。
 
-助手只读取代理配置，并在存在时使用系统 Java 信任库，不保存或输出访问令牌。当前云环境构建应选择完整 JDK，而非宿主不完整的默认编译器；例如将 `JAVA_HOME` 指向已安装的 JDK 21。
-
-可安装产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.1.0-alpha.jar`。工程未配置游戏运行任务；开发与 CI 均只做构建。
-
-## GitHub Actions 与发布
-
-[构建工作流](.github/workflows/build.yml) 使用 Java 21 与 Gradle Wrapper，支持 push、PR 和手动触发；构建成功才上传上述唯一可安装 JAR，日志总会保留，不上传 sources/dev JAR。
-
-手动触发 `Build Cinematic Exposure`，选中 `release`：构建任务成功后，发布任务才创建 `v0.1.0-alpha` 标签和 Pre-release，并上传**该次 Actions 的构建产物**。发布说明为中文。创建已存在标签/Release 会失败，不自动覆盖旧发布。普通 push/PR 不发布。
-
-## 尚未验证与已知限制
-
-- 没有游戏内验证：实际镜头构图、袖层/手部位置、附件接口对齐、穿模、冲印节奏，需要玩家测试调整。碰撞约束是尽量减少穿模，不能保证任意地形下无穿模。
-- 缩放后宽度小于 440，或关闭窗口右置时，原窗口可能覆盖部分背景动画；原窗口的交互保持可用。
-- 使用世界空间渲染与宿主包内手臂方法的精准 Invoker。宿主更新、其他相机/玩家模型模组、光影、资源包、GUI 布局模组可能需要额外适配。
-- 高延迟/服务器纠正可能中止已经开始的预测视觉。只保证不产生额外物品操作；多人环境效果未验证。自动化移走成品也会表现为结果槽减少。
-- Lightroom 的其他菜单仍使用原 GUI；照片预览子窗口打开时动画安全退出，返回时重新接入。
-- 不广播附属动画给旁观者，不新增任何服务端协议。
-
-具体源码核对与兼容层说明见 [docs/source-analysis.md](docs/source-analysis.md)，编译记录见 [docs/build-report.md](docs/build-report.md)。许可证见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+源码分析见 [docs/source-analysis.md](docs/source-analysis.md)，许可证见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

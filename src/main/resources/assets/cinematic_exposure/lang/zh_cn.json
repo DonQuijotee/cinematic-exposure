@@ -4,5 +4,21 @@
   "cinematic_exposure.configuration.camera": "相机改装动画",
   "cinematic_exposure.configuration.lightroom": "暗房冲印台动画",
   "cinematic_exposure.configuration.speed": "动画播放速度",
-  "cinematic_exposure.configuration.dockGui": "将原有界面放在右侧"
+  "cinematic_exposure.target.film": "胶卷",
+  "cinematic_exposure.target.flash": "闪光灯",
+  "cinematic_exposure.target.lens": "镜头",
+  "cinematic_exposure.target.filter": "滤镜",
+  "cinematic_exposure.target.paper": "相纸",
+  "cinematic_exposure.target.cyan": "青色",
+  "cinematic_exposure.target.magenta": "品红",
+  "cinematic_exposure.target.yellow": "黄色",
+  "cinematic_exposure.target.black": "黑色",
+  "cinematic_exposure.target.photo": "成品",
+  "cinematic_exposure.target.print": "冲印",
+  "cinematic_exposure.target.previous": "上一帧",
+  "cinematic_exposure.target.next": "下一帧",
+  "cinematic_exposure.target.process": "流程",
+  "cinematic_exposure.camera.title": "相机改装",
+  "cinematic_exposure.camera.hint": "从库存拿取附件，再点击机身对应部位；Shift 点击快速转移；Esc 退出",
+  "cinematic_exposure.lightroom.hint": "点击台面放置或拿取；点击冲印；Shift 冲印：创造模式；Esc 退出"
 }

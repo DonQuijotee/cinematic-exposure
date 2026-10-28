@@ -7,7 +7,6 @@ public final class ClientConfig {
     public static final ModConfigSpec.BooleanValue CAMERA;
     public static final ModConfigSpec.BooleanValue LIGHTROOM;
     public static final ModConfigSpec.DoubleValue SPEED;
-    public static final ModConfigSpec.BooleanValue DOCK_GUI;
 
     static {
         var builder = new ModConfigSpec.Builder();
@@ -16,10 +15,8 @@ public final class ClientConfig {
                 .translation("cinematic_exposure.configuration.camera").define("camera", true);
         LIGHTROOM = builder.comment("Enable Lightroom animations.")
                 .translation("cinematic_exposure.configuration.lightroom").define("lightroom", true);
-        SPEED = builder.comment("Animation playback speed, including camera transitions.")
+        SPEED = builder.comment("Hand animation speed; Lightroom approach and exit follow Cinematic host settings.")
                 .translation("cinematic_exposure.configuration.speed").defineInRange("speed", 1.0, 0.25, 3.0);
-        DOCK_GUI = builder.comment("Move the original window to the right when scaled width is at least 440.")
-                .translation("cinematic_exposure.configuration.dockGui").define("dockGui", true);
         builder.pop();
         SPEC = builder.build();
     }
