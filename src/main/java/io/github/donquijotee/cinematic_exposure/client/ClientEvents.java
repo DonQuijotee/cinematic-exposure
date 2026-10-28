@@ -33,6 +33,22 @@ public final class ClientEvents {
         if (VisualSession.get() != null && VisualSession.get().weight() > 0.01) event.setCanceled(true);
     }
 
+    /** Match the host's immersive HUD policy without changing hideGui or any saved user setting. */
+    @SubscribeEvent
+    public static void guiLayer(net.neoforged.neoforge.client.event.RenderGuiLayerEvent.Pre event) {
+        var screen = net.minecraft.client.Minecraft.getInstance().screen;
+        boolean camera = screen instanceof CameraSceneScreen
+                || screen == null && VisualSession.get() != null && VisualSession.get().weight() > 0.01;
+        if (camera && !CAMERA_HUD_KEEP.contains(event.getName())) event.setCanceled(true);
+    }
+
+    private static final java.util.Set<net.minecraft.resources.ResourceLocation> CAMERA_HUD_KEEP = java.util.Set.of(
+            net.neoforged.neoforge.client.gui.VanillaGuiLayers.CHAT,
+            net.neoforged.neoforge.client.gui.VanillaGuiLayers.SUBTITLE_OVERLAY,
+            net.neoforged.neoforge.client.gui.VanillaGuiLayers.DEBUG_OVERLAY,
+            net.neoforged.neoforge.client.gui.VanillaGuiLayers.SAVING_INDICATOR,
+            net.neoforged.neoforge.client.gui.VanillaGuiLayers.TAB_LIST);
+
     @SubscribeEvent
     public static void fov(ViewportEvent.ComputeFov event) {
         if (VisualSession.get() != null && event.usedConfiguredFov()) {

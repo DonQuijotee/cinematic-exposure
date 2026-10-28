@@ -1,3 +1,13 @@
+# v0.2.3 相机叠加层与胶卷交互
+
+- Cinematic Overlay.hides 只在 Scene.active 时隐藏 HUD，独立手持相机 VisualSession 不满足该条件。ClientEvents 现为 CameraSceneScreen 和无其他窗口的退出过渡应用同样的 HUD 保留名单，不改游戏选项、不影响普通库存界面。
+- CameraSceneScreen 仍继承 AbstractContainerScreen 以保留原版输入，EMI 因而自动识别它。EMI 公开 exclusion API 只排除物品位置，不能完整隐藏搜索框/按钮或阻止输入；屏幕 bounds provider 也没有明确的排除返回值。
+- 阅读 EMI 1.21 分支（81f6453c0d0b6df2e503d0bc5f19f1c73fd12173）及其 EmiScreenBase、EmiScreenManager、NeoForge 事件和 ScreenMixin。选择单个可选 @Pseudo Mixin，在 EmiScreenBase.of(Screen) 入口只将 CameraSceneScreen 参数映射为 null，走 EMI 自己的空界面分支。getCurrent、widgets、render、mouse/key 路径因此使用 empty base。没有改 EMI 配置或其他 Screen。
+- 下载并校验官方 Modrinth EMI 1.1.22（ouSj7NfF）/1.1.24（5sIPA1To）的 NeoForge JAR SHA-512，javap 验证实际 Mojmap 方法描述符。1.1.22 的 null 分支创建空 base，1.1.24 返回 EMPTY 单例，两者均兼容；未假设它们内部实现完全相同。仅静态检查，不启动或加载游戏。
+- 胶卷的局部接口从左侧移到右侧 (0.19,-0.065,0.10)，CameraAction outward 改为 +right。所有热点/标记/右手目标读取同一 socket，安装、取出路径均保持在机身右侧。未改菜单槽位编号、附件数据或物品操作。
+
+以下为历史版本记录。
+
 # v0.2.2 动作、抽屉与暗房状态
 
 - 朝向修复：VisualSession.forward=(-sin(yaw),0,cos(yaw))，模型应绕 Y 轴旋转 -yaw 才能让模型负 Z 的镜头对齐 -forward。旧 SceneDrawing 使用 +yaw，转向时模型与接口路径偏离。新 CameraAction 为每个动作固定 socket/outside/carry/rest，镜头先旋松、沿轴拔出，再转移至右手；胶卷和闪光灯分别使用各自侧向轴。

@@ -308,7 +308,7 @@ public final class VisualSession {
         if (motion == null) { action = null; actionMotion = null; return null; }
         if (actionMotion != motion) {
             Vec3 outward = switch (motion.kind) {
-                case FILM -> right.scale(-1);
+                case FILM -> right; // The film interaction is on the right, so the arm never reaches across the body.
                 case FLASH -> right;
                 default -> forward.scale(-1);
             };
@@ -340,7 +340,7 @@ public final class VisualSession {
     }
     public Vec3 socket(Motion.Kind kind) {
         if (camera) return switch (kind) {
-            case FILM -> local(-0.12, 0.015, 0.04);
+            case FILM -> local(0.19, -0.065, 0.10);
             case FLASH -> local(0.225, 0, -0.045);
             case LENS, FILTER -> local(0, 0, -0.26);
             default -> work;

@@ -11,7 +11,8 @@
     "AddonAvailabilityMixin",
     "SceneScreenAccess",
     "CameraDrawerMixin",
-    "LightroomChecksInvoker"
+    "LightroomChecksInvoker",
+    "EmiCameraScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

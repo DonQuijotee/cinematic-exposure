@@ -1,6 +1,6 @@
 # Cinematic Exposure
 
-Minecraft 1.21.1 / NeoForge 独立附属。**v0.2.2-alpha 打磨相机取出与附件动作、统一 Cinematic 物品栏，并增加暗房工艺和光照说明。尚未进行游戏内测试。**
+Minecraft 1.21.1 / NeoForge 独立附属。**v0.2.3-alpha 隐藏相机界面的原版 HUD 与 EMI 叠加，并将胶卷交互移到右侧。尚未进行游戏内测试。**
 
 依赖 Java 21、NeoForge 21.1.255、Cinematic Interactions 0.18.12、Exposure 1.9.19。依赖不打包。
 
@@ -22,9 +22,13 @@ Lightroom 使用 Cinematic 正式 `AddonStations` / `AddonScenes` / `AddonMenuSt
 
 ## 相机改装
 
-打开手持相机改装后，相机保持固定大小，由双手从画面下方托起；关闭时放回下方。左手稳定托住机身，右手操作附件。相机模型朝向与手部路径统一到同一坐标系；每次附件动作开始时固定路径，镜头/滤镜先旋松再沿镜头轴拔出，胶卷从侧面抽出，闪光灯沿侧面接口取下。安装为对准、沿接口送入、旋紧、松手。窗口/GUI 缩放变化会安全取消旧视觉轨迹，不重复物品操作。
+打开手持相机改装后，相机保持固定大小，由双手从画面下方托起；关闭时放回下方。左手稳定托住机身，右手操作附件。相机模型朝向与手部路径统一到同一坐标系；每次附件动作开始时固定路径，镜头/滤镜先旋松再沿镜头轴拔出，胶卷从右侧抽出，闪光灯沿侧面接口取下。安装为对准、沿接口送入、旋紧、松手。窗口/GUI 缩放变化会安全取消旧视觉轨迹，不重复物品操作。
 
 物品栏使用 **Cinematic 原 SceneScreen 抽屉面板**：顶部快捷栏常显，鼠标移入后展开背包，移开后收起；Tab 可以固定展开，再按取消固定。相机位于抽屉下方，展开不挪动附件目标。通过局部 Mixin 调用宿主面板与命中逻辑，原有暗房及其他工作站不受此私有抽屉实例影响。未复制依赖 JAR 或纹理。
+
+相机界面仅保留 Cinematic 抽屉作为库存显示，隐藏原版快捷栏及常规 HUD，保留聊天、字幕、调试信息等宿主也保留的辅助层。关闭后按正常界面自动恢复，不修改 hideGui 设置。
+
+EMI 为可选兼容：只在 CameraSceneScreen 中让 EMI 使用原生空界面分支，阻止侧栏、搜索框、按钮与配方快捷键接管；普通背包、其他工作站和 EMI 全局配置不变。无需安装 EMI；已核对 EMI 1.1.22 和 1.1.24 的 NeoForge 发布 JAR 接口。胶卷热点、悬停右手目标与装卸路径都使用右侧同一坐标，右手沿右侧抽出，不跨过机身伸向左侧。
 
 实际物品图标与鼠标拖拽仍由 `AbstractContainerScreen` 处理，槽位和 Menu 均为 Exposure 原对象，不修改 Slot.x/y；适配器只转换屏幕坐标。支持普通点击、拖拽分配、Shift 快速转移、双击归集与数字键换槽；点击场景空白不会意外丢弃光标物品。第三人称打开时保留 Exposure 原窗口。
 
@@ -52,9 +56,9 @@ speed = 1.0
 python3 tools/verify-artifact.py
 ```
 
-代理云环境可用 `python3 tools/cloud-build.py build --stacktrace`，保留 TLS 校验。产物为 `build/libs/cinematic-exposure-1.21.1-neoforge-0.2.2-alpha.jar`。
+代理云环境可用 `python3 tools/cloud-build.py build --stacktrace`，保留 TLS 校验。产物为 `build/libs/cinematic-exposure-1.21.1-neoforge-0.2.3-alpha.jar`。
 
-GitHub Actions 支持 push、PR 和手动构建。手动启用 release 后，仅在构建与打包检查成功时发布 v0.2.2-alpha Pre-release，并上传同次构建的 JAR。不会覆盖旧版 Release。
+GitHub Actions 支持 push、PR 和手动构建。手动启用 release 后，仅在构建与打包检查成功时发布 v0.2.3-alpha Pre-release，并上传同次构建的 JAR。不会覆盖旧版 Release。
 
 没有启动 Minecraft 客户端或服务器。需要玩家验证台面拾取范围、镜头构图、手部/物品穿模、预览与库存抽屉布局、光影及多人同步。默认皮肤/模型之外的资源包可能需要进一步调位。
 

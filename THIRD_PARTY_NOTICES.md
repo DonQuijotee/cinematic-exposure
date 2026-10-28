@@ -64,3 +64,9 @@ SOFTWARE.
 
 Gradle Wrapper is distributed under Apache License 2.0.
 https://github.com/gradle/gradle/blob/v8.8.0/LICENSE
+
+## Optional EMI compatibility
+
+Source consulted: https://github.com/emilyploszaj/emi (1.21 branch).
+The optional client Mixin invokes EMI's own empty-screen behavior; no EMI source or assets are bundled.
+EMI remains an optional installed mod, not a required dependency.

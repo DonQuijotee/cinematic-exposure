@@ -1,3 +1,9 @@
+# v0.2.3-alpha 构建记录
+
+Java 21 / Gradle 8.8，执行 `./gradlew build --stacktrace`（通过 cloud-build.py 提供云代理/CA）成功。JAR 静态检查通过；额外以 javap 检查官方 EMI 1.1.22 与 1.1.24 NeoForge JAR 中目标方法及 null-screen 行为。EMI 不作为必需依赖，不打包其 JAR。
+
+未启动 Minecraft、未进行游戏内或服务器测试。Actions 只在成功构建后发布同次产物。以下为旧版本记录。
+
 # v0.2.2-alpha 构建记录
 
 Java 21.0.9 / Gradle 8.8 / NeoForge 21.1.255。相机与抽屉阶段 compileJava 通过，暗房状态阶段 compileJava 通过，完整 `./gradlew build --stacktrace`（由 cloud-build.py 配置代理与 CA）通过。
