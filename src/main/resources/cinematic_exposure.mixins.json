@@ -8,7 +8,10 @@
     "HandsInvoker",
     "InventoryClickMixin",
     "MenuSyncMixin",
-    "AddonAvailabilityMixin"
+    "AddonAvailabilityMixin",
+    "SceneScreenAccess",
+    "CameraDrawerMixin",
+    "LightroomChecksInvoker"
   ],
   "injectors": {
     "defaultRequire": 1

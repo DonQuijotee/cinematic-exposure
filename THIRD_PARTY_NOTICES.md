@@ -7,7 +7,8 @@ The scene geometry and integration were developed by consulting the following MI
 
 Source: https://github.com/dcvke/CinematicInteractions
 Baseline: c79e1b9e05347165f6766700007cef45c8ce4d57 (0.18.12).
-The add-on invokes the installed host’s hand renderer.
+The add-on invokes the installed host’s hand renderer and SceneScreen drawer rendering/picking.
+The camera adapter follows SceneScreen’s drawer layout formulas; no host JAR or textures are bundled.
 
 MIT License
 

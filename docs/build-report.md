@@ -1,3 +1,11 @@
+# v0.2.2-alpha 构建记录
+
+Java 21.0.9 / Gradle 8.8 / NeoForge 21.1.255。相机与抽屉阶段 compileJava 通过，暗房状态阶段 compileJava 通过，完整 `./gradlew build --stacktrace`（由 cloud-build.py 配置代理与 CA）通过。
+
+静态检查包括 Java 21 字节码、元数据、语言键、Mixin 类文件，以及使用 javap 检查实际 Cinematic 0.18.12 发布 JAR 中抽屉适配所需的字段、方法和 GUI 调用描述符。javap 只解析类文件，不加载游戏。运行结果以本次 Actions 日志为准。
+
+未启动 Minecraft，未执行 runClient/runServer，未做游戏内动画、Mixin 应用或输入验证。旧版本记录如下。
+
 # v0.2.1-alpha 修复构建记录
 
 环境：Java 21.0.9、Gradle 8.8、NeoForge 21.1.255；依赖版本未改变。

@@ -41,6 +41,8 @@ public final class VisualSession {
     private final List<ItemStack> slots = new ArrayList<>();
     private final ArrayDeque<Motion> pending = new ArrayDeque<>();
     public Motion motion;
+    private Motion actionMotion;
+    private CameraAction action;
     private boolean printing;
     private boolean leaving;
     private double weight;
@@ -122,8 +124,16 @@ public final class VisualSession {
         }
         if (current == null) return;
         VisualSession s = current;
-        if (mc.screen instanceof CameraSceneScreen screen && s.camera)
-            s.work = screen.workPoint(s.originEye, s.forward, s.right);
+        if (mc.screen instanceof CameraSceneScreen screen && s.camera) {
+            Vec3 nextWork = screen.workPoint(s.originEye, s.forward, s.right);
+            if (s.work.distanceToSqr(nextWork) > 1e-8) {
+                // Window/GUI scale changes invalidate captured animation anchors, never the real operation.
+                s.motion = null; s.pending.clear(); s.action = null; s.actionMotion = null;
+                s.smoothRight = null;
+                s.snapshot();
+            }
+            s.work = nextWork;
+        }
         boolean present = supported && mc.player.containerMenu == s.menu;
         if (!s.camera) {
             LightroomMenu lm = (LightroomMenu) s.menu;
@@ -151,7 +161,7 @@ public final class VisualSession {
         s.weight = Mth.lerp(Motion.ease(s.transitionTime / 0.65), s.fromWeight, s.leaving ? 0 : 1);
         if (!s.leaving) {
             s.detect();
-            if (s.motion == null) s.motion = s.pending.poll();
+            if (s.motion == null && s.weight > 0.99) s.motion = s.pending.poll();
             if (s.motion != null) {
                 s.motion.advance(step);
                 if (s.motion.done()) s.motion = null;
@@ -267,10 +277,11 @@ public final class VisualSession {
         if (attachment != null) {
             // This detached display copy is never returned to any menu or network code.
             // Hide the installed part until seating; retain a removed part until the hand reaches it.
-            if (motion.inserting && motion.progress() < 0.78) display.remove(attachment.component());
-            else if (!motion.inserting && motion.progress() < 0.20) {
+            if (motion.inserting) {
+                if (motion.progress() < 0.80) display.remove(attachment.component());
+            } else if (motion.progress() < 0.18) {
                 display.set(attachment.component(), new StoredItemStack(motion.item.copy()));
-            }
+            } else display.remove(attachment.component());
         }
         return display;
     }
@@ -287,12 +298,32 @@ public final class VisualSession {
 
     public ItemStack film() {
         if (camera) return ItemStack.EMPTY;
-        if (motion != null && motion.kind == Motion.Kind.FILM && !motion.inserting && motion.progress() < 0.20) {
+        if (motion != null && motion.kind == Motion.Kind.FILM && !motion.inserting && motion.progress() < 0.18) {
             return motion.item.copy();
         }
         return menu.getSlot(Lightroom.FILM_SLOT).getItem().copy();
     }
     public ItemStack photo() { return camera ? ItemStack.EMPTY : menu.getSlot(Lightroom.RESULT_SLOT).getItem().copy(); }
+    public CameraAction action() {
+        if (motion == null) { action = null; actionMotion = null; return null; }
+        if (actionMotion != motion) {
+            Vec3 outward = switch (motion.kind) {
+                case FILM -> right.scale(-1);
+                case FLASH -> right;
+                default -> forward.scale(-1);
+            };
+            action = new CameraAction(motion, smoothRight == null ? rest(true) : smoothRight,
+                    rest(true), local(0.34, -0.03, -0.30), socket(motion.kind), outward);
+            actionMotion = motion;
+        }
+        return action;
+    }
+
+    /** Full-size camera comes from below the frustum; both grip points share exactly this translation. */
+    public Vec3 entranceOffset() {
+        return new Vec3(0, -1.25 * (1-weight), 0).add(forward.scale(-0.14*(1-weight)));
+    }
+
     public Vec3 smooth(boolean rightHand, Vec3 target) {
         Vec3 previous = rightHand ? smoothRight : smoothLeft;
         Vec3 next = previous == null ? target : previous.lerp(target, 1 - Math.exp(-frameStep * 20));

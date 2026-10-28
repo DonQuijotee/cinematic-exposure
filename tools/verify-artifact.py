@@ -8,13 +8,13 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 jar = Path(sys.argv[1]) if len(sys.argv) > 1 else (
-    root / 'build/libs/cinematic-exposure-1.21.1-neoforge-0.2.1-alpha.jar'
+    root / 'build/libs/cinematic-exposure-1.21.1-neoforge-0.2.2-alpha.jar'
 )
 with zipfile.ZipFile(jar) as archive:
     names = set(archive.namelist())
     metadata = tomllib.loads(archive.read('META-INF/neoforge.mods.toml').decode())
     assert metadata['mods'][0]['modId'] == 'cinematic_exposure'
-    assert metadata['mods'][0]['version'] == '0.2.1-alpha'
+    assert metadata['mods'][0]['version'] == '0.2.2-alpha'
     dependencies = {dep['modId'] for dep in metadata['dependencies']['cinematic_exposure']}
     assert dependencies == {'minecraft', 'neoforge', 'exposure', 'cinematic'}
     config = json.loads(archive.read('cinematic_exposure.mixins.json'))
@@ -34,3 +34,23 @@ with zipfile.ZipFile(jar) as archive:
         assert magic == 0xCAFEBABE and major == 65, (name, major)
     assert not any(name.endswith('.jar') for name in names), 'Dependencies must not be bundled'
 print(f'PASS: {jar.name}; Java 21 classes, metadata, mixin classes, languages and notices checked')
+
+# Inspect dependency bytecode only; never bootstrap Minecraft or load the game classes.
+import os
+import shutil
+import subprocess
+javap = str(Path(os.environ['JAVA_HOME']) / 'bin/javap') if os.environ.get('JAVA_HOME') else shutil.which('javap')
+assert javap, 'A JDK with javap is required for the drawer adapter check'
+host = root / 'build/dependencies/CinematicInteraction-0.18.12-NeoForge-1.21.1.jar'
+abi = subprocess.run([javap, '-p', '-s', '-c', '-classpath', str(host),
+                      'dev.dyslexic.cinematic.client.SceneScreen'], check=True, capture_output=True, text=True).stdout
+for signature in [
+    'private double expand;', 'private float scale;',
+    'private int panelX;', 'private int panelY;', 'private int panelW;', 'private int panelH;',
+    'protected void init();', 'private boolean overPanel(double, double);', 'private int slotAt(double, double);',
+    'private void drawPanel(net.minecraft.client.gui.GuiGraphics, net.minecraft.client.player.LocalPlayer, int, float);',
+    'GuiGraphics.renderItem:(Lnet/minecraft/world/item/ItemStack;II)V',
+    'GuiGraphics.renderItemDecorations:(Lnet/minecraft/client/gui/Font;Lnet/minecraft/world/item/ItemStack;II)V',
+]:
+    assert signature in abi, f'Cinematic drawer ABI changed: {signature}'
+print('PASS: actual Cinematic JAR contains the drawer adapter targets; no game classes executed')

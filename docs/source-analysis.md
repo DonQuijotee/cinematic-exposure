@@ -1,3 +1,13 @@
+# v0.2.2 动作、抽屉与暗房状态
+
+- 朝向修复：VisualSession.forward=(-sin(yaw),0,cos(yaw))，模型应绕 Y 轴旋转 -yaw 才能让模型负 Z 的镜头对齐 -forward。旧 SceneDrawing 使用 +yaw，转向时模型与接口路径偏离。新 CameraAction 为每个动作固定 socket/outside/carry/rest，镜头先旋松、沿轴拔出，再转移至右手；胶卷和闪光灯分别使用各自侧向轴。
+- 相机进出：移除 `0.72*weight` 缩放，始终按 0.72 渲染，使用同一 entranceOffset 将机身和左手从下方抬起。此动画只用于打开/关闭改装界面，不接入拍照举机。
+- 抽屉实际代码位于 final SceneScreen 的私有方法，没有公开独立组件。CinematicDrawer 组合一个不显示为当前 Screen 的 SceneScreen 实例，通过 SceneScreenAccess 调用原 drawPanel/overPanel/slotAt；布局采用原尺寸和展开公式。CameraDrawerMixin 仅对该实例跳过 Scene.consulted 初始化和库存物品绘制，原工作站不变。图标/拖拽交给原版 AbstractContainerScreen，保留原 Exposure Menu。使用 javap 核对已下载 0.18.12 JAR 中方法及调用描述符。
+- 光照判定调用 LightroomBlockEntity.hasSufficientLightLevel；数字使用 LevelUtil.getLightLevelAt，普通时采样正上方，折射时采样上方再上一格及上方的四个水平邻格，阈值取 Exposure Config.Server。每 tick 只在活动场景计算显示状态，无额外数据同步。
+- 工艺名称读取 getActualPrintingMode（REGULAR/CHROMATIC），切换可用性读取 LightroomMenu.canChangeProcess（isRefracted）。未折射时只提示原因，不发送无意义切换请求。缺料说明通过客户端 LightroomChecksInvoker 读取原 process/paper/dyes 检查，成品容量使用原公开方法；最终印制与消耗仍由服务端执行。
+
+以下保留之前版本的实现依据；相机抽屉及动作以上述 v0.2.2 为准。
+
 # v0.2.1 显示与物品栏修复依据
 
 ## 合成台持久渲染的实际机制

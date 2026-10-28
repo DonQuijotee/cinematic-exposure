@@ -36,55 +36,39 @@ public final class SceneDrawing {
         Vec3 rightHand = session.rest(true);
         Vec3 leftHand = session.rest(false);
         Motion motion = session.motion;
-        if (motion != null) {
-            Vec3 pickup = session.local(0.36, -0.07, -0.24);
-            rightHand = motion.hand(rightHand, pickup, session.socket(motion.kind));
-            if (!session.camera && motion.kind == Motion.Kind.PRINT) {
-                // The left hand steadies the paper while the right hand presses the enlarger control.
-                double hold = Motion.window(motion.progress(), 0, 0.3)
-                        * (1 - Motion.window(motion.progress(), 0.7, 1));
-                leftHand = leftHand.lerp(session.local(-0.12, 0.04, 0.03), hold);
-            }
-        }
+        CameraAction action = session.action();
+        if (action != null) rightHand = action.hand();
         if (motion == null && mc.screen instanceof CameraSceneScreen screen) {
             int slot = screen.hoveredAttachment();
             if (slot >= 0 && slot < screen.getMenu().slots.size()-36) rightHand = session.socket(screen.kind(slot));
         }
-        leftHand = leftShoulder.add(facing.scale(0.08)).lerp(leftHand, weight);
-        rightHand = rightShoulder.add(facing.scale(0.08)).lerp(rightHand, weight);
-        leftHand = session.smooth(false, leftHand);
+        Vec3 entrance = session.entranceOffset();
+        leftHand = leftHand.add(entrance);
+        rightHand = rightHand.add(entrance);
+        // The camera and supporting hand must stay locked together throughout the lift.
         rightHand = session.smooth(true, rightHand);
         if (weight > 0.01) {
             HandsInvoker.cinematicExposure$drawArm(pose, buffers, eye, leftHand, leftShoulder, false, light, session.forward);
             pose.pushPose();
-            if (motion != null && motion.twist() != 0) {
-                Vec3 axis = rightHand.subtract(rightShoulder).normalize();
+            if (action != null && action.showsItem() && action.twist() != 0) {
+                Vec3 axis = session.forward.scale(-1);
                 Vec3 pivot = rightHand.subtract(eye);
                 pose.translate(pivot.x, pivot.y, pivot.z);
-                pose.mulPose(new Quaternionf().rotationAxis((float) Math.toRadians(motion.twist()),
+                pose.mulPose(new Quaternionf().rotationAxis((float) Math.toRadians(action.twist()),
                         (float) axis.x, (float) axis.y, (float) axis.z));
                 pose.translate(-pivot.x, -pivot.y, -pivot.z);
             }
             HandsInvoker.cinematicExposure$drawArm(pose, buffers, eye, rightHand, rightShoulder, true, light, session.forward);
             pose.popPose();
         }
-        if (session.camera && weight > 0.01) {
-            Vec3 location = session.work.add(0, -0.28 * (1 - weight), 0);
-            item(pose, buffers, eye, session.cameraStack(), location, session.forward,
-                    (float) (0.72 * weight), 0, 0, light);
-        } else if (!session.camera && weight > 0.01) {
-            if (motion == null || motion.kind != Motion.Kind.FILM || !motion.inserting || motion.progress() >= 0.78) {
-                item(pose, buffers, eye, session.film(), session.socket(Motion.Kind.FILM),
-                        session.forward, 0.18f, 0, 0, light);
-            }
-            item(pose, buffers, eye, session.photo(), session.socket(Motion.Kind.PHOTO),
-                    session.forward, 0.24f, 90, 0, light);
+        if (weight > 0.001) {
+            item(pose, buffers, eye, session.cameraStack(), session.work.add(entrance), session.forward,
+                    0.72f, 0, 0, light);
         }
-        if (motion != null && motion.showsItem() && weight > 0.01) {
-            Vec3 held = rightHand.add(session.forward.scale(0.035)).add(0, 0.015, 0);
-            float tilt = motion.kind == Motion.Kind.PHOTO ? 75 : motion.kind == Motion.Kind.FILM ? 10 : 0;
+        if (action != null && action.showsItem() && weight > 0.99) {
+            Vec3 held = rightHand;
             item(pose, buffers, eye, motion.item, held, session.forward,
-                    (float) (0.22 * weight), tilt, motion.twist(), light);
+                    0.22f, motion.kind == Motion.Kind.FILM ? 10 : 0, action.twist(), light);
         }
         if (motion == null && mc.screen instanceof CameraSceneScreen screen && !screen.getMenu().getCarried().isEmpty()) {
             item(pose,buffers,eye,screen.getMenu().getCarried(),rightHand,session.forward,0.22f,0,0,light);
@@ -100,7 +84,7 @@ public final class SceneDrawing {
         pose.translate(at.x - eye.x, at.y - eye.y, at.z - eye.z);
         // Face the camera's lens toward the viewer, so the complete mounting action stays visible.
         float turn = stack.getItem() instanceof CameraItem ? 0 : 180;
-        pose.mulPose(Axis.YP.rotationDegrees((float) Math.toDegrees(Math.atan2(-forward.x, forward.z)) + turn));
+        pose.mulPose(Axis.YP.rotationDegrees((float) Math.toDegrees(Math.atan2(-forward.x, forward.z)) * -1 + turn));
         pose.mulPose(Axis.XP.rotationDegrees(tilt));
         pose.mulPose(Axis.ZP.rotationDegrees(twist));
         pose.scale(scale, scale, scale);
