@@ -14,6 +14,9 @@ public final class ClientBootstrap {
             dev.dyslexic.cinematic.api.client.AddonScenes.register(
                 net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(CinematicExposure.MOD_ID, "lightroom"),
                 (pos, state, player, side) -> new LightroomStation(pos, side))));
+        bus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers event) ->
+            event.registerBlockEntityRenderer(io.github.mortuusars.exposure.Exposure.BlockEntityTypes.LIGHTROOM.get(),
+                LightroomRenderer::new));
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
     }
 }

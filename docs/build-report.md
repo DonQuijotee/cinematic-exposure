@@ -1,3 +1,13 @@
+# v0.2.1-alpha 修复构建记录
+
+环境：Java 21.0.9、Gradle 8.8、NeoForge 21.1.255；依赖版本未改变。
+
+分阶段 compileJava --stacktrace：持久物品、世界照片、冲印动作均通过；相机部分发现一次变量作用域编译错误，已修复并再次通过。最终执行 `./gradlew build --stacktrace`（通过 tools/cloud-build.py 注入云代理与信任库）及 tools/verify-artifact.py，完整构建 BUILD SUCCESSFUL（9 秒），打包检查 PASS。Actions 在推送后独立构建并仅在成功后发布。
+
+未启动 Minecraft，未执行 runClient/runServer，未进行游戏内或图形测试。编译检查不能证明 BER、手部姿态、GUI 拖拽和网络场景在游戏中的实际表现。
+
+以下保留旧版本历史构建记录。
+
 # v0.2.0-alpha 编译记录
 
 本次在完整 Java 21 环境运行 Gradle Wrapper build --stacktrace，通过云代理助手保留 TLS 校验。结果 BUILD SUCCESSFUL；随后 tools/verify-artifact.py 静态打包检查通过。

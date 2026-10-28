@@ -19,6 +19,8 @@
   "cinematic_exposure.target.next": "Next",
   "cinematic_exposure.target.process": "Process",
   "cinematic_exposure.camera.title": "Camera attachments",
-  "cinematic_exposure.camera.hint": "Pick an attachment from inventory, then click its camera mount. Shift-click: quick move. Esc: leave.",
-  "cinematic_exposure.lightroom.hint": "Click the work surface to place or take; click Print. Shift-Print: creative. Esc: leave."
+  "cinematic_exposure.camera.hint": "Tab: inventory · Shift: quick move · Esc: exit",
+  "cinematic_exposure.lightroom.hint": "Click the work surface to place or take; click Print. Shift-Print: creative. Esc: leave.",
+  "cinematic_exposure.camera.inventory.open": "Open inventory [Tab]",
+  "cinematic_exposure.camera.inventory.close": "Close inventory [Tab]"
 }

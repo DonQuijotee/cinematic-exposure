@@ -2,8 +2,6 @@ package io.github.donquijotee.cinematic_exposure.client;
 
 import io.github.donquijotee.cinematic_exposure.CinematicExposure;
 import io.github.donquijotee.cinematic_exposure.ClientConfig;
-import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -45,7 +43,8 @@ public final class ClientEvents {
 
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void opening(ScreenEvent.Opening event) {
-        if (ClientConfig.CAMERA.get() && event.getNewScreen() instanceof
+        if (ClientConfig.CAMERA.get() && net.minecraft.client.Minecraft.getInstance().options.getCameraType().isFirstPerson()
+                && event.getNewScreen() instanceof
                 io.github.mortuusars.exposure.client.gui.screen.camera.CameraAttachmentsScreen screen
                 && screen.getMenu() instanceof io.github.mortuusars.exposure.world.inventory.CameraInHandAttachmentsMenu menu) {
             event.setNewScreen(new CameraSceneScreen(menu));

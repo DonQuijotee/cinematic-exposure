@@ -50,7 +50,7 @@ public final class VisualSession {
     private final float originYaw;
     public final Vec3 forward;
     public final Vec3 right;
-    public final Vec3 work;
+    public Vec3 work;
     private final Vec3 desiredEye;
     private final float desiredYaw;
     private final float desiredPitch;
@@ -69,7 +69,8 @@ public final class VisualSession {
         if (camera) {
             forward = direction(originYaw);
             right = new Vec3(-forward.z, 0, forward.x);
-            work = originEye.add(forward.scale(0.75)).add(0, -0.32, 0);
+            work = mc.screen instanceof CameraSceneScreen screen ? screen.workPoint(originEye, forward, right)
+                    : originEye.add(forward.scale(0.75)).add(0, -0.32, 0);
             desiredEye = originEye.add(forward.scale(0.045)).add(0, -0.03, 0);
             desiredYaw = originYaw + framing();
             desiredPitch = 18;
@@ -121,6 +122,8 @@ public final class VisualSession {
         }
         if (current == null) return;
         VisualSession s = current;
+        if (mc.screen instanceof CameraSceneScreen screen && s.camera)
+            s.work = screen.workPoint(s.originEye, s.forward, s.right);
         boolean present = supported && mc.player.containerMenu == s.menu;
         if (!s.camera) {
             LightroomMenu lm = (LightroomMenu) s.menu;

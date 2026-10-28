@@ -19,6 +19,8 @@
   "cinematic_exposure.target.next": "下一帧",
   "cinematic_exposure.target.process": "流程",
   "cinematic_exposure.camera.title": "相机改装",
-  "cinematic_exposure.camera.hint": "从库存拿取附件，再点击机身对应部位；Shift 点击快速转移；Esc 退出",
-  "cinematic_exposure.lightroom.hint": "点击台面放置或拿取；点击冲印；Shift 冲印：创造模式；Esc 退出"
+  "cinematic_exposure.camera.hint": "Tab：物品栏 · Shift：快速转移 · Esc：退出",
+  "cinematic_exposure.lightroom.hint": "点击台面放置或拿取；点击冲印；Shift 冲印：创造模式；Esc 退出",
+  "cinematic_exposure.camera.inventory.open": "展开物品栏 [Tab]",
+  "cinematic_exposure.camera.inventory.close": "收起物品栏 [Tab]"
 }
