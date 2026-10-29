@@ -62,7 +62,6 @@ public final class VisualSession {
     private Vec3 smoothLeft;
     private double frameStep;
     final HandPickup pickup = new HandPickup();
-    private double settle;
     private boolean motionFromHand;
 
     private VisualSession(AbstractContainerMenu menu, boolean camera) {
@@ -137,7 +136,7 @@ public final class VisualSession {
             if (s.work.distanceToSqr(nextWork) > 1e-8) {
                 // Window/GUI scale changes invalidate captured animation anchors, never the real operation.
                 s.motion = null; s.pending.clear(); s.action = null; s.actionMotion = null;
-                s.smoothRight = null;
+                s.smoothRight = null; s.smoothLeft = null;
                 s.pickup.reset();
                 s.snapshot();
             }
@@ -166,7 +165,6 @@ public final class VisualSession {
         }
         double step = dt * ClientConfig.SPEED.get();
         s.frameStep = step;
-        s.settle = Math.max(0, s.settle-step);
         s.transitionTime += step;
         s.weight = Mth.lerp(Motion.ease(s.transitionTime / 0.65), s.fromWeight, s.leaving ? 0 : 1);
         if (!s.leaving) {
@@ -177,12 +175,14 @@ public final class VisualSession {
             }
             if (s.motion != null) {
                 s.motion.advance(step);
-                if (s.motion.done()) { s.motion = null; s.settle = 0.25; }
+                if (s.motion.done()) s.motion = null;
             }
             Vec3 eye = mc.gameRenderer.getMainCamera().getPosition();
             boolean transfer = s.motion != null || !s.pending.isEmpty();
-            s.pickup.observe(s.menu.getCarried(), s.smoothRight == null ? s.rest(true) : s.smoothRight,
-                    HandReach.pocket(eye, s.forward, true), s.rest(true), !transfer);
+            boolean pickupRight = s.carriedRight();
+            Vec3 previous = pickupRight ? s.smoothRight : s.smoothLeft;
+            s.pickup.observe(s.menu.getCarried(), previous == null ? s.rest(pickupRight) : previous,
+                    HandReach.pocket(eye,s.forward,pickupRight),s.carry(pickupRight),!transfer);
             s.pickup.advance(step);
         }
         if (s.leaving && s.weight < 0.001) current = null;
@@ -286,9 +286,9 @@ public final class VisualSession {
         if (motion != null && motion.kind == kind) motion = null;
         pending.removeIf(old -> old.kind == kind);
         if (!before.isEmpty()) enqueue(camera && kind == Motion.Kind.FILM
-                ? new Motion(kind,false,before,1.45) : new Motion(kind, false, before));
+                ? new Motion(kind,false,before,CameraAssembly.FILM_DURATION) : new Motion(kind, false, before));
         if (!after.isEmpty()) enqueue(camera && kind == Motion.Kind.FILM
-                ? new Motion(kind,true,after,1.45) : new Motion(kind, true, after));
+                ? new Motion(kind,true,after,CameraAssembly.FILM_DURATION) : new Motion(kind, true, after));
     }
 
     public ItemStack cameraStack() {
@@ -300,7 +300,7 @@ public final class VisualSession {
             // Hide the installed part until seating; retain a removed part until the hand reaches it.
             if (motion.inserting) {
                 if (motion.progress() < 0.80) display.remove(attachment.component());
-            } else if (motion.progress() < (motion.kind == Motion.Kind.FILM ? 0.36 : 0.18)) {
+            } else if (motion.progress() < (motion.kind == Motion.Kind.FILM ? 0.22 : 0.18)) {
                 display.set(attachment.component(), new StoredItemStack(motion.item.copy()));
             } else display.remove(attachment.component());
         }
@@ -329,14 +329,16 @@ public final class VisualSession {
         if (motion == null) { action = null; actionMotion = null; return null; }
         if (actionMotion != motion) {
             Vec3 outward = switch (motion.kind) {
-                case FILM -> right; // Film uses its own explicit under-body corridor in CameraAction.
-                case FLASH -> right;
+                case FILM -> assemblyOffset(new CameraAssembly.Point(0,0,1),forward,right);
+                case FLASH -> assemblyOffset(new CameraAssembly.Point(1,0,0),forward,right);
                 default -> assemblyOffset(new CameraAssembly.Point(0,0,-1),forward,right);
             };
-            action = new CameraAction(motion, smoothRight == null ? rest(true) : smoothRight,
-                    rest(true), HandReach.pocket(Minecraft.getInstance().gameRenderer.getMainCamera().getPosition(), forward, true),
-                    socket(motion.kind), outward, motionFromHand,
-                    local(CameraAssembly.FILM_OUTSIDE),local(CameraAssembly.FILM_CLEARANCE));
+            boolean rightHand = motionRight();
+            Vec3 previous = rightHand ? smoothRight : smoothLeft;
+            action = new CameraAction(motion,previous == null ? rest(rightHand) : previous,
+                    motion.inserting ? rest(rightHand) : carry(rightHand),
+                    HandReach.pocket(Minecraft.getInstance().gameRenderer.getMainCamera().getPosition(),forward,rightHand),
+                    socket(motion.kind),outward,motionFromHand,local(CameraAssembly.FILM_OUTSIDE));
             actionMotion = motion;
         }
         return action;
@@ -358,19 +360,21 @@ public final class VisualSession {
         return next;
     }
     public double weight() { return weight; }
-    public boolean canHover() { return settle <= 0 && !pickup.active(); }
     public Vec3 local(double x, double y, double z) {
         if (camera) return work.add(assemblyOffset(new CameraAssembly.Point(x,y,z),forward,right));
         return work.add(right.scale(x)).add(0, y, 0).add(forward.scale(z));
     }
     public Vec3 local(CameraAssembly.Point point) { return local(point.x(),point.y(),point.z()); }
     public static Vec3 assemblyOffset(CameraAssembly.Point point, Vec3 forward, Vec3 right) {
-        var tilted = CameraAssembly.tilt(point);
+        var tilted = CameraAssembly.orient(point);
         return right.scale(tilted.x()).add(0,tilted.y(),0).add(forward.scale(tilted.z()));
     }
     public Vec3 rest(boolean rightHand) {
         return camera ? local(rightHand ? CameraAssembly.RIGHT_REST : CameraAssembly.LEFT_GRIP)
                 : local(rightHand ? 0.28 : -0.28, 0.035, -0.20);
+    }
+    public Vec3 carry(boolean rightHand) {
+        return local(rightHand ? CameraAssembly.RIGHT_CARRY : CameraAssembly.LEFT_CARRY);
     }
     public Vec3 socket(Motion.Kind kind) {
         if (camera) return switch (kind) {
@@ -387,11 +391,13 @@ public final class VisualSession {
         };
     }
 
-    /** Hovering previews the approach; only an actual transfer reaches underneath the body. */
-    public Vec3 hover(Motion.Kind kind) {
-        if (kind == Motion.Kind.FILM) return local(CameraAssembly.FILM_CLEARANCE);
-        if (kind == Motion.Kind.FLASH) return local(0.48,0,-0.045);
-        return socket(kind);
+    public boolean motionRight() {
+        return motion == null || motion.kind != Motion.Kind.LENS && motion.kind != Motion.Kind.FILTER;
+    }
+
+    public boolean carriedRight() {
+        ItemStack carried = menu.getCarried();
+        return !Attachment.LENS.matches(carried) && !Attachment.FILTER.matches(carried);
     }
 
     /** Clamp movement to the live eye and raycast it, so this visual adapter cannot see through walls. */

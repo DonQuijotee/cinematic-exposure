@@ -1,3 +1,15 @@
+# v0.2.6-alpha 构建记录
+
+2026-10-29（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。分阶段 compileJava 成功，最终通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（8 秒）。TLS 校验保持开启。
+
+`tools/verify-artifact.py` 打包/宿主接口检查通过；成品 JAR 的独立 CameraAssembly 数学检查通过。新增侧向镜头、胶卷位置、左右支撑断言；238356 个胶卷路径采样，另检查左手镜头端点、变换可逆、初末连续性、可达距离及原模型闪光灯间距。测试仅加载附属的纯 Java 几何类，没有 Minecraft 或依赖运行类路径。数学检查不能验证动作观感，上一版用户实测反馈正说明这一限制。
+
+产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.2.6-alpha.jar`。Actions 继续在完整构建和检查通过后才发布同次产物。
+
+未启动游戏、客户端或服务器，未进行画面/游戏内测试。仍需验证侧向构图、两手操作及支撑的实际观感、快速换物/中断、缩放与替换模型资源包。暗房代码本次未修改。
+
+以下保留旧版本记录。
+
 # v0.2.5-alpha 构建与几何检查
 
 2026-10-29（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。通过 cloud-build.py 配置云代理/CA 执行实际 `./gradlew build --stacktrace` 成功；未关闭 TLS 校验。

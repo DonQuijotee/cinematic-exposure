@@ -10,7 +10,7 @@ public final class CameraAction {
     private final CameraAssembly.FilmPath filmPath;
 
     public CameraAction(Motion motion, Vec3 start, Vec3 rest, Vec3 carry, Vec3 socket, Vec3 outward,
-                        boolean alreadyHolding, Vec3 filmOutside, Vec3 filmClearance) {
+                        boolean alreadyHolding, Vec3 filmOutside) {
         this.motion = motion;
         this.start = start;
         this.rest = rest;
@@ -19,7 +19,7 @@ public final class CameraAction {
         this.alreadyHolding = alreadyHolding;
         this.outside = socket.add(outward.scale(motion.kind == Motion.Kind.FILTER ? 0.12 : 0.22));
         filmPath = motion.kind == Motion.Kind.FILM ? new CameraAssembly.FilmPath(point(start),point(rest),
-                point(carry),point(socket),point(filmOutside),point(filmClearance),alreadyHolding) : null;
+                point(carry),point(socket),point(filmOutside),alreadyHolding) : null;
     }
 
     public Vec3 hand() {
@@ -48,7 +48,7 @@ public final class CameraAction {
     public boolean showsItem() {
         double t = motion.progress();
         return motion.inserting ? (alreadyHolding || t >= 0.21) && t < 0.80
-                : t >= (filmPath != null ? 0.36 : 0.18);
+                : t >= (filmPath != null ? 0.22 : 0.18);
     }
 
     public float twist() {

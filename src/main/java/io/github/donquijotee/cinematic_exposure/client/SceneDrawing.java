@@ -35,23 +35,17 @@ public final class SceneDrawing {
         Vec3 leftHand = session.rest(false);
         Motion motion = session.motion;
         CameraAction action = session.action();
-        if (action != null) rightHand = action.hand();
-        if (motion == null && session.pickup.active()) rightHand = session.pickup.hand();
-        if (motion == null && session.canHover() && mc.screen instanceof CameraSceneScreen screen) {
-            int slot = screen.hoveredAttachment();
-            if (slot >= 0 && slot < screen.getMenu().slots.size()-36) {
-                var kind = io.github.mortuusars.exposure.world.item.camera.Attachment.FILM.matches(screen.getMenu().getCarried())
-                        ? Motion.Kind.FILM : screen.kind(slot);
-                rightHand = session.hover(kind);
-            }
+        if (action != null) {
+            if (session.motionRight()) rightHand = action.hand(); else leftHand = action.hand();
+        } else if (session.pickup.active()) {
+            if (session.carriedRight()) rightHand = session.pickup.hand(); else leftHand = session.pickup.hand();
+        } else if (session.pickup.showsItem()) {
+            if (session.carriedRight()) rightHand = session.carry(true); else leftHand = session.carry(false);
         }
+        // Hover only highlights slots. It must not switch arms or drag a hand across the camera.
         Vec3 entrance = session.entranceOffset();
-        leftHand = leftHand.add(entrance);
-        rightHand = rightHand.add(entrance);
-        // The camera and supporting hand must stay locked together throughout the lift.
-        rightHand = session.smooth(true, rightHand);
-        leftHand = HandReach.limit(leftHand, leftShoulder);
-        rightHand = HandReach.limit(rightHand, rightShoulder);
+        leftHand = HandReach.limit(session.smooth(false,leftHand).add(entrance),leftShoulder);
+        rightHand = HandReach.limit(session.smooth(true,rightHand).add(entrance),rightShoulder);
         if (weight > 0.01) {
             HandsInvoker.cinematicExposure$drawArm(pose, buffers, eye, leftHand, leftShoulder, false, light, session.forward);
             // Turning the entire arm about the socket also rotated the shoulder off the body.
@@ -63,22 +57,17 @@ public final class SceneDrawing {
                     0.72f, CameraAssembly.TILT, 0, light);
         }
         if (action != null && action.showsItem() && weight > 0.99) {
-            Vec3 held = heldPoint(session,rightHand,motion.item);
+            Vec3 held = session.motionRight() ? rightHand : leftHand;
             item(pose, buffers, eye, motion.item, held, session.forward,
-                    0.22f, CameraAssembly.TILT + (motion.kind == Motion.Kind.FILM ? 10 : 0), action.twist(), light);
+                    0.22f, CameraAssembly.TILT, action.twist(), light);
         }
         if (motion == null && session.pickup.showsItem() && weight > 0.99
                 && mc.screen instanceof CameraSceneScreen screen && !screen.getMenu().getCarried().isEmpty()) {
             var carried = screen.getMenu().getCarried();
-            item(pose,buffers,eye,carried,heldPoint(session,rightHand,carried),session.forward,
+            item(pose,buffers,eye,carried,session.carriedRight() ? rightHand : leftHand,session.forward,
                     0.22f,CameraAssembly.TILT,0,light);
         }
         buffers.endBatch();
-    }
-
-    private static Vec3 heldPoint(VisualSession session, Vec3 hand, ItemStack stack) {
-        return io.github.mortuusars.exposure.world.item.camera.Attachment.FILM.matches(stack)
-                ? hand.add(VisualSession.assemblyOffset(CameraAssembly.FILM_IN_HAND,session.forward,session.right)) : hand;
     }
 
     private static void item(PoseStack pose, MultiBufferSource buffers, Vec3 eye, ItemStack stack,
@@ -87,11 +76,12 @@ public final class SceneDrawing {
         Minecraft mc = Minecraft.getInstance();
         pose.pushPose();
         pose.translate(at.x - eye.x, at.y - eye.y, at.z - eye.z);
-        // Face the camera's lens toward the viewer, so the complete mounting action stays visible.
+        // Camera body and attachment models share the same side-on assembly orientation.
         float turn = stack.getItem() instanceof CameraItem ? 0 : 180;
-        pose.mulPose(Axis.YP.rotationDegrees((float) Math.toDegrees(Math.atan2(-forward.x, forward.z)) * -1 + turn));
+        pose.mulPose(Axis.YP.rotationDegrees((float) Math.toDegrees(Math.atan2(-forward.x, forward.z)) * -1 + CameraAssembly.YAW));
         pose.mulPose(Axis.XP.rotationDegrees(tilt));
         pose.mulPose(Axis.ZP.rotationDegrees(twist));
+        pose.mulPose(Axis.YP.rotationDegrees(turn));
         pose.scale(scale, scale, scale);
         // Exposure's camera body spans model Y=0..6. Center the actual body at the hand anchor,
         // bypassing its item-frame FIXED transform (which is intentionally offset and enlarged).
