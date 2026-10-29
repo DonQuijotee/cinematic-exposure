@@ -1,3 +1,15 @@
+# v0.2.8-alpha 构建记录
+
+2026-10-30（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（9 秒），TLS 校验保持开启。
+
+`tools/verify-artifact.py` 打包和宿主接口检查通过，既有相机几何回归 238356 个采样通过。额外用 javap 核对真实 Exposure iBvaR6AK JAR：LightroomMenu.fromBuffer 创建独立 SimpleContainerData，getData 返回该菜单字段，证实上一版使用 BE 进度的错误；修正为与原版 LightroomScreen 相同的数据来源。
+
+产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.2.8-alpha.jar`。Actions 仅在完整构建和检查成功后发布同次产物。
+
+未运行游戏、客户端或服务器。静态检查不代表显影效果已经游戏内验证；图片渐入、完成/取消切换以及光影/资源包兼容仍需玩家实测。
+
+以下保留旧版本记录。
+
 # v0.2.7-alpha 构建记录
 
 2026-10-30（Asia/Shanghai）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（8 秒）；TLS 校验保持开启。

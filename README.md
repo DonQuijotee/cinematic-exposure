@@ -1,6 +1,8 @@
 # Cinematic Exposure
 
-Minecraft 1.21.1 / NeoForge 独立附属。**v0.2.7-alpha 为暗房中央预览增加跟随实际冲印进度的淡入效果。尚未进行游戏内测试。**
+本版修复冲印时预览只剩白纸的问题：显影进度改读 Exposure 客户端菜单实际同步的数据，而不是方块实体中过时的进度。
+
+Minecraft 1.21.1 / NeoForge 独立附属。**v0.2.8-alpha 为暗房中央预览增加跟随实际冲印进度的淡入效果。尚未进行游戏内测试。**
 
 依赖 Java 21、NeoForge 21.1.255、Cinematic Interactions 0.18.12、Exposure 1.9.19。依赖不打包。
 
@@ -72,9 +74,9 @@ speed = 1.0
 python3 tools/verify-artifact.py
 ```
 
-代理云环境可用 `python3 tools/cloud-build.py build --stacktrace`，保留 TLS 校验。产物为 `build/libs/cinematic-exposure-1.21.1-neoforge-0.2.7-alpha.jar`。
+代理云环境可用 `python3 tools/cloud-build.py build --stacktrace`，保留 TLS 校验。产物为 `build/libs/cinematic-exposure-1.21.1-neoforge-0.2.8-alpha.jar`。
 
-GitHub Actions 支持 push、PR 和手动构建。手动启用 release 后，仅在构建与打包检查成功时发布 v0.2.7-alpha Pre-release，并上传同次构建的 JAR。不会覆盖旧版 Release。
+GitHub Actions 支持 push、PR 和手动构建。手动启用 release 后，仅在构建与打包检查成功时发布 v0.2.8-alpha Pre-release，并上传同次构建的 JAR。不会覆盖旧版 Release。
 
 验证脚本另运行纯 Java 装配几何检查（CameraAssembly，无 Minecraft 类或依赖在运行类路径中）：检查侧向朝向、变换可逆、路径连续性、左右握点距离、原版闪光灯与手掌/袖子/胶卷的采样间距，以及平滑路径。普通与金色闪光灯共用此几何模型。该检查不能替代实际渲染验证，资源包改模不在此包围盒保证范围内。
 

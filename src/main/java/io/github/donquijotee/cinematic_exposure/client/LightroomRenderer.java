@@ -74,15 +74,20 @@ public final class LightroomRenderer implements BlockEntityRenderer<LightroomBlo
 
     private static io.github.mortuusars.exposure.util.color.Color photographTint(LightroomBlockEntity entity) {
         var player = net.minecraft.client.Minecraft.getInstance().player;
-        // Exposure synchronizes progress through the open menu's ContainerData, not continuously to
-        // every observer. Only fade when that authoritative stream belongs to this particular block.
-        // Outside the menu, keep the persistent preview visible rather than using a stale progress value.
-        if (entity.isPrinting() && player != null
+        // LightroomMenu.fromBuffer uses a separate SimpleContainerData on the client. Data packets
+        // update that menu, NOT this block entity's progress fields. Match LightroomScreen's source.
+        // Outside the menu, keep the persistent preview visible rather than using stale BE progress.
+        if (player != null
                 && player.containerMenu instanceof io.github.mortuusars.exposure.world.inventory.LightroomMenu menu
                 && menu.getBlockEntity() == entity) {
-            float alpha = (float) Motion.ease(entity.getProgressPercentage());
-            // The paper and border stay opaque; only the image develops from blank to full colour.
-            return io.github.mortuusars.exposure.util.color.Color.argbF(alpha,1,1,1);
+            var data = menu.getData();
+            int time = data.get(LightroomBlockEntity.CONTAINER_DATA_PRINT_TIME_ID);
+            if (time > 0) {
+                int progress = data.get(LightroomBlockEntity.CONTAINER_DATA_PROGRESS_ID);
+                float alpha = (float) Motion.ease(progress / (double) time);
+                // The paper and border stay opaque; only the image develops from blank to full colour.
+                return io.github.mortuusars.exposure.util.color.Color.argbF(alpha,1,1,1);
+            }
         }
         return io.github.mortuusars.exposure.util.color.Color.WHITE;
     }

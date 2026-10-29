@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: '成功构建后发布 v0.2.7-alpha 预发布版本'
+        description: '成功构建后发布 v0.2.8-alpha 预发布版本'
         type: boolean
         default: false
 
@@ -38,7 +38,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cinematic-exposure-neoforge-1.21.1
-          path: build/libs/cinematic-exposure-1.21.1-neoforge-0.2.7-alpha.jar
+          path: build/libs/cinematic-exposure-1.21.1-neoforge-0.2.8-alpha.jar
           if-no-files-found: error
       - name: Preserve build log
         if: always()
@@ -67,9 +67,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release create v0.2.7-alpha \
-            release/cinematic-exposure-1.21.1-neoforge-0.2.7-alpha.jar \
+          gh release create v0.2.8-alpha \
+            release/cinematic-exposure-1.21.1-neoforge-0.2.8-alpha.jar \
             --target "$GITHUB_SHA" \
-            --title "Cinematic Exposure v0.2.7-alpha" \
-            --notes-file docs/release-v0.2.7-alpha.md \
+            --title "Cinematic Exposure v0.2.8-alpha" \
+            --notes-file docs/release-v0.2.8-alpha.md \
             --prerelease

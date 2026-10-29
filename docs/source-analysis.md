@@ -1,3 +1,11 @@
+# v0.2.8 修复显影进度来源
+
+- v0.2.7 错误地从客户端 LightroomBlockEntity.getProgressPercentage 读取进度。实际 LightroomMenu.fromBuffer 创建独立 SimpleContainerData，菜单数据包更新它而非客户端 BE 的 progress/printTime。因而图片透明度停留在零，只有不透明相纸可见。以下 v0.2.7 记录中的进度来源结论已由本节纠正。
+- 对照 Exposure LightroomScreen.renderBg 的实现，改读当前匹配方块菜单 getData() 的 CONTAINER_DATA_PROGRESS_ID / CONTAINER_DATA_PRINT_TIME_ID。总时长 > 0 时按真实进度淡入；总时长归零即恢复完整图片，不再混用方块 PRINTING 状态和菜单同步数据。
+- 保留原 ImageRenderer、图像尺寸/内容、世界坐标与相纸底层。无新计时器、网络包、容器写入或游戏逻辑改动。旁观和退出菜单仍显示完整预览，创造模式即时冲印不伪造渐入过程。
+
+以下为历史版本记录。
+
 # v0.2.7 暗房预览淡入
 
 - 实查 Exposure LightroomBlockEntity：getProgressPercentage 返回 progress/printTime，isPrinting 读取方块 PRINTING 状态。LightroomMenu.addDataSlots 使用原 ContainerData 持续同步进度/总时长，普通旁观客户端不持续获得这些数据。
