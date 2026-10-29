@@ -63,8 +63,8 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
         Vec3 hit=Picking.cursorOnPlane(top.y);
         if(hit==null) return;
         double best=0.105*0.105;
-        for(int i=0;i<12;i++) {
-            double distance=(i == 11 ? lightPoint() : point(i)).distanceToSqr(hit);
+        for(int i=0;i<11;i++) {
+            double distance=point(i).distanceToSqr(hit);
             if(distance<best) { best=distance; hovered=i; }
         }
         Vec3 relative = hit.subtract(top);
@@ -85,7 +85,7 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
     @Override public double handsStiffness() { return 20 * ClientConfig.SPEED.get(); }
     @Override public Vec3 heldItemPoint(Vec3 hand, Vec3 shoulder) { return hand.add(0,-0.055,0); }
     @Override protected void act(int button, boolean shift) {
-        if(menu()==null || hovered<0 || hovered==11 || button>1) return;
+        if(menu()==null || hovered<0 || button>1) return;
         if (hovered == 10 && !menu().canChangeProcess()) return;
         tappedAt = Scene.clock();
         if(hovered<7) { slotClick(hovered,button,shift); return; }
@@ -221,20 +221,6 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
         // Keep it empty: BER owns resting objects and renderWorld owns the one transient prop.
     }
     @Override public void renderWorld(PoseStack pose, MultiBufferSource buffers, Vec3 camera, int light) {
-        if (status != null) {
-            pose.pushPose();
-            Vec3 p = lightPoint().subtract(camera);
-            pose.translate(p.x, p.y+0.002, p.z);
-            pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(-side.toYRot()));
-            pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(90));
-            var vertices = buffers.getBuffer(net.minecraft.client.renderer.RenderType.debugQuads());
-            var matrix = pose.last().pose();
-            vertices.addVertex(matrix,-0.045f,0.009f,0).setColor(status.color());
-            vertices.addVertex(matrix,0.045f,0.009f,0).setColor(status.color());
-            vertices.addVertex(matrix,0.045f,-0.009f,0).setColor(status.color());
-            vertices.addVertex(matrix,-0.045f,-0.009f,0).setColor(status.color());
-            pose.popPose();
-        }
         // Follow the host's actual smoothed fist, not the unsmoothed animation target.
         if (showsMotionItem()) {
             Vec3 hand = HandsInvoker.cinematicExposure$position(motion.kind != Motion.Kind.FILM);
@@ -250,7 +236,6 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
         pickup.reset();
         super.onEnd();
     }
-    private Vec3 lightPoint() { return top.add(side().scale(0.47)); }
 
     @Override public void renderScreen(GuiGraphics graphics, Font font, float alpha) {
         if (menu() == null) return;
@@ -264,9 +249,6 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
             int color = i == 10 && !menu().canChangeProcess() ? 0xFF999999 : hovered == i ? 0xFFFFCC66 : 0xFFFFFFFF;
             if (xy != null) graphics.drawCenteredString(font,label,(int)xy[0],(int)xy[1],color);
         }
-        double[] lamp = Picking.toGui(lightPoint());
-        if (status != null && lamp != null)
-            graphics.drawCenteredString(font,status.label(),(int)lamp[0],(int)lamp[1],status.color());
         if (overPanel) {
             var mc = Minecraft.getInstance();
             int mx = (int)(mc.mouseHandler.xpos()*mc.getWindow().getGuiScaledWidth()/mc.getWindow().getScreenWidth());
@@ -279,16 +261,14 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
             return;
         }
         java.util.List<Component> details = new java.util.ArrayList<>();
-        if (hovered == 11 && status != null) {
-            details.add(status.label()); details.add(status.detail());
-            details.add(LightroomStatus.text("light.note"));
-        } else if (hovered == 10) {
+        if (hovered == 10) {
             details.add(Component.translatable("cinematic_exposure.lightroom.mode."+mode));
             details.add(Component.translatable("cinematic_exposure.lightroom.mode."+mode+".info"));
             details.add(LightroomStatus.text(menu().canChangeProcess() ? "mode.switch" : "mode.locked"));
         } else if (hovered == 7 && status != null) {
             details.addAll(status.problems());
             if (details.isEmpty()) details.add(LightroomStatus.text("ready"));
+            details.add(status.label());
             details.add(status.detail());
             if (Minecraft.getInstance().player.isCreative())
                 details.add(Component.translatable("gui.exposure.lightroom.print.creative_tooltip"));

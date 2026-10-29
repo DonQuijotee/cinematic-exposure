@@ -1,3 +1,13 @@
+# v0.2.9 负片显影与移除光照条
+
+- Exposure 提供 RenderableImage.modifyWith(ImageEffect.NEGATIVE)，底层 ModifiedImage 是只读像素包装，保留 alpha。使用负片作为不透明底图、原图作为渐显上层；NEGATIVE_FILM 会按亮度修改 alpha，不适合本次相纸上的预览，故不用。
+- 每张图片仅使用原图标识和稳定 negative variant，复用 Exposure ImageRenderer 的贴图缓存与清理，不生成随进度变化的贴图标识，不复制或改写照片存储。正片层比负片高 0.0005 格，避免共面深度闪烁。
+- 当前菜单的选帧与冲印进度均来自 LightroomMenu 的独立 ContainerData，与原 LightroomScreen 相同。空闲状态根据输出槽 PhotographItem、StackedPhotographsItem 或 ChromaticSheetItem 的实际帧标识决定是否已经有对应成品；退出/重进无需临时完成缓存。移走对应输出后恢复负片，实际开始再次冲印时按新进度显影。混色仅预览当前帧，不模拟 Exposure 的多层照片合成。
+- 移除 LightroomStation 前缘光照条、常驻标签、编号 11 拾取区域；保留冲印悬停中的光照/材料说明。移除 BER 中图片下方闪烁条。原四个按钮、手部动画、容器逻辑和服务端校验不变。
+- 旁观者没有菜单的持续进度，按实际成品/胶卷显示静态负片或成片；不新增同步。实际透明混合和光影兼容尚未经游戏内验证。
+
+以下为历史版本记录。
+
 # v0.2.8 修复显影进度来源
 
 - v0.2.7 错误地从客户端 LightroomBlockEntity.getProgressPercentage 读取进度。实际 LightroomMenu.fromBuffer 创建独立 SimpleContainerData，菜单数据包更新它而非客户端 BE 的 progress/printTime。因而图片透明度停留在零，只有不透明相纸可见。以下 v0.2.7 记录中的进度来源结论已由本节纠正。

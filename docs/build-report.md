@@ -1,3 +1,15 @@
+# v0.2.9-alpha 构建记录
+
+2026-10-30（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。负片渲染与光照条移除后 compileJava --stacktrace 成功（8 秒）；最终通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（6 秒）。TLS 校验保持开启。
+
+`tools/verify-artifact.py` 通过 Java 21 字节码、元数据、Mixin、语言和宿主接口检查，既有相机几何回归 238356 个采样通过。源码核对 Exposure 的 NEGATIVE / ModifiedImage 只读效果、稳定图片变体标识、原图渲染器的透明混合、客户端菜单进度及成品/照片堆/混色相纸的帧读取 API。git diff --check 通过，旧光照拾取点与旧 BE 进度读取均已移除。
+
+产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.2.9-alpha.jar`。Actions 仅在完整构建和检查成功后发布同次产物。
+
+未启动游戏或服务器，未进行游戏内或画面测试。待玩家验证负片到成片的实际观感、透明层叠、混色流程、取走成品/切换帧以及光影资源包兼容；编译检查不能验证这些视觉与运行时行为。
+
+以下保留旧版本记录。
+
 # v0.2.8-alpha 构建记录
 
 2026-10-30（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（9 秒），TLS 校验保持开启。
