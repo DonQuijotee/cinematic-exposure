@@ -39,7 +39,11 @@ public final class SceneDrawing {
         if (motion == null && session.pickup.active()) rightHand = session.pickup.hand();
         if (motion == null && session.canHover() && mc.screen instanceof CameraSceneScreen screen) {
             int slot = screen.hoveredAttachment();
-            if (slot >= 0 && slot < screen.getMenu().slots.size()-36) rightHand = session.socket(screen.kind(slot));
+            if (slot >= 0 && slot < screen.getMenu().slots.size()-36) {
+                var kind = io.github.mortuusars.exposure.world.item.camera.Attachment.FILM.matches(screen.getMenu().getCarried())
+                        ? Motion.Kind.FILM : screen.kind(slot);
+                rightHand = session.hover(kind);
+            }
         }
         Vec3 entrance = session.entranceOffset();
         leftHand = leftHand.add(entrance);
@@ -56,18 +60,25 @@ public final class SceneDrawing {
         }
         if (weight > 0.001) {
             item(pose, buffers, eye, session.cameraStack(), session.work.add(entrance), session.forward,
-                    0.72f, 0, 0, light);
+                    0.72f, CameraAssembly.TILT, 0, light);
         }
         if (action != null && action.showsItem() && weight > 0.99) {
-            Vec3 held = rightHand;
+            Vec3 held = heldPoint(session,rightHand,motion.item);
             item(pose, buffers, eye, motion.item, held, session.forward,
-                    0.22f, motion.kind == Motion.Kind.FILM ? 10 : 0, action.twist(), light);
+                    0.22f, CameraAssembly.TILT + (motion.kind == Motion.Kind.FILM ? 10 : 0), action.twist(), light);
         }
         if (motion == null && session.pickup.showsItem() && weight > 0.99
                 && mc.screen instanceof CameraSceneScreen screen && !screen.getMenu().getCarried().isEmpty()) {
-            item(pose,buffers,eye,screen.getMenu().getCarried(),rightHand,session.forward,0.22f,0,0,light);
+            var carried = screen.getMenu().getCarried();
+            item(pose,buffers,eye,carried,heldPoint(session,rightHand,carried),session.forward,
+                    0.22f,CameraAssembly.TILT,0,light);
         }
         buffers.endBatch();
+    }
+
+    private static Vec3 heldPoint(VisualSession session, Vec3 hand, ItemStack stack) {
+        return io.github.mortuusars.exposure.world.item.camera.Attachment.FILM.matches(stack)
+                ? hand.add(VisualSession.assemblyOffset(CameraAssembly.FILM_IN_HAND,session.forward,session.right)) : hand;
     }
 
     private static void item(PoseStack pose, MultiBufferSource buffers, Vec3 eye, ItemStack stack,

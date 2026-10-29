@@ -79,9 +79,16 @@ public final class CameraSceneScreen extends AbstractContainerScreen<CameraInHan
         // A small GUI viewport must not place the body metres away just to fit its projection.
         // Move the body with the supporting grip so the left hand still touches the camera.
         Vec3 viewEye = eye.add(forward.scale(0.045)).add(0,-0.03,0);
-        Vec3 shoulder = HandReach.shoulder(viewEye, forward, false);
-        Vec3 grip = work.add(right.scale(-0.13)).add(0,-0.15,0);
-        return work.add(HandReach.limit(grip,shoulder).subtract(grip));
+        // Fit the whole film corridor, not just the left grip. Otherwise the reach clamp cuts corners
+        // back through the mounted flash even when the authored path goes around it.
+        var fitted = CameraAssembly.fitWork(yawPoint(work.subtract(eye),forward,right),
+                yawPoint(HandReach.shoulder(viewEye,forward,false).subtract(eye),forward,right),
+                yawPoint(HandReach.shoulder(viewEye,forward,true).subtract(eye),forward,right),HandReach.MAX);
+        return eye.add(right.scale(fitted.x())).add(0,fitted.y(),0).add(forward.scale(fitted.z()));
+    }
+
+    private static CameraAssembly.Point yawPoint(Vec3 point, Vec3 forward, Vec3 right) {
+        return new CameraAssembly.Point(point.dot(right),point.y,point.dot(forward));
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {

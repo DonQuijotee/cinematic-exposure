@@ -1,3 +1,15 @@
+# v0.2.5-alpha 构建与几何检查
+
+2026-10-29（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。通过 cloud-build.py 配置云代理/CA 执行实际 `./gradlew build --stacktrace` 成功；未关闭 TLS 校验。
+
+`tools/verify-artifact.py` 检查 Java 21 字节码、版本/依赖、Mixin、语言键、许可证和宿主私有接口，并用 JDK 运行 `tools/CheckCameraAssembly.java`。该独立程序的类路径只有附属 JAR，只加载其中纯 Java CameraAssembly，不加载 Minecraft 类或依赖、不开窗口、不启动客户端/服务器。
+
+最终 278856 个路径采样通过，包括连续性、变换可逆、可达距离、掌/袖包络及胶卷道具与原版闪光灯间距。涵盖 9 个初始构图、3 个初始手位、装卸/手持状态、30/60/144 FPS、.25/1/3 动画速度和平滑后的轨迹。过程中发现外侧转弯及袖子下缘过近，已扩大绕行范围并调整握持倾角到 26°；最终采样最小间距约 .0093 格。它是指定原模型的数学回归检查，不是游戏渲染/碰撞引擎测试。
+
+产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.2.5-alpha.jar`。GitHub Actions 在构建和上述检查均成功后才发布同次 Artifact。没有进行游戏内或多人测试，资源包改模、异常视角、快速中断及实际手指贴合仍待玩家验证。
+
+以下保留旧版本记录。
+
 # v0.2.4-alpha 构建记录
 
 2026-10-29（Asia/Shanghai）。Java 21.0.9 / Gradle 8.8 / NeoForge 21.1.255。分阶段 compileJava 成功，最终通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，结果 BUILD SUCCESSFUL（首轮 10 秒，最终修正后 7 秒）。没有关闭 TLS 校验。

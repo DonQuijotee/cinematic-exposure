@@ -14,10 +14,14 @@ public final class Motion {
     public final double duration;
 
     public Motion(Kind kind, boolean inserting, ItemStack item) {
+        this(kind,inserting,item,kind == Kind.LENS ? 1.35 : kind == Kind.PRINT ? 1.1 : 0.95);
+    }
+
+    public Motion(Kind kind, boolean inserting, ItemStack item, double duration) {
         this.kind = kind;
         this.inserting = inserting;
         this.item = item.copy();
-        duration = kind == Kind.LENS ? 1.35 : kind == Kind.PRINT ? 1.1 : 0.95;
+        this.duration = duration;
     }
 
     public void advance(double dt) { time += dt; }

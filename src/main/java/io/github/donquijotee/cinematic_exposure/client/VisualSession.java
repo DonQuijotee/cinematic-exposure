@@ -285,8 +285,10 @@ public final class VisualSession {
         // A newer state supersedes an unfinished transfer, including a server correction.
         if (motion != null && motion.kind == kind) motion = null;
         pending.removeIf(old -> old.kind == kind);
-        if (!before.isEmpty()) enqueue(new Motion(kind, false, before));
-        if (!after.isEmpty()) enqueue(new Motion(kind, true, after));
+        if (!before.isEmpty()) enqueue(camera && kind == Motion.Kind.FILM
+                ? new Motion(kind,false,before,1.45) : new Motion(kind, false, before));
+        if (!after.isEmpty()) enqueue(camera && kind == Motion.Kind.FILM
+                ? new Motion(kind,true,after,1.45) : new Motion(kind, true, after));
     }
 
     public ItemStack cameraStack() {
@@ -298,7 +300,7 @@ public final class VisualSession {
             // Hide the installed part until seating; retain a removed part until the hand reaches it.
             if (motion.inserting) {
                 if (motion.progress() < 0.80) display.remove(attachment.component());
-            } else if (motion.progress() < 0.18) {
+            } else if (motion.progress() < (motion.kind == Motion.Kind.FILM ? 0.36 : 0.18)) {
                 display.set(attachment.component(), new StoredItemStack(motion.item.copy()));
             } else display.remove(attachment.component());
         }
@@ -327,13 +329,14 @@ public final class VisualSession {
         if (motion == null) { action = null; actionMotion = null; return null; }
         if (actionMotion != motion) {
             Vec3 outward = switch (motion.kind) {
-                case FILM -> right; // The film interaction is on the right, so the arm never reaches across the body.
+                case FILM -> right; // Film uses its own explicit under-body corridor in CameraAction.
                 case FLASH -> right;
-                default -> forward.scale(-1);
+                default -> assemblyOffset(new CameraAssembly.Point(0,0,-1),forward,right);
             };
             action = new CameraAction(motion, smoothRight == null ? rest(true) : smoothRight,
                     rest(true), HandReach.pocket(Minecraft.getInstance().gameRenderer.getMainCamera().getPosition(), forward, true),
-                    socket(motion.kind), outward, motionFromHand);
+                    socket(motion.kind), outward, motionFromHand,
+                    local(CameraAssembly.FILM_OUTSIDE),local(CameraAssembly.FILM_CLEARANCE));
             actionMotion = motion;
         }
         return action;
@@ -357,17 +360,23 @@ public final class VisualSession {
     public double weight() { return weight; }
     public boolean canHover() { return settle <= 0 && !pickup.active(); }
     public Vec3 local(double x, double y, double z) {
+        if (camera) return work.add(assemblyOffset(new CameraAssembly.Point(x,y,z),forward,right));
         return work.add(right.scale(x)).add(0, y, 0).add(forward.scale(z));
     }
+    public Vec3 local(CameraAssembly.Point point) { return local(point.x(),point.y(),point.z()); }
+    public static Vec3 assemblyOffset(CameraAssembly.Point point, Vec3 forward, Vec3 right) {
+        var tilted = CameraAssembly.tilt(point);
+        return right.scale(tilted.x()).add(0,tilted.y(),0).add(forward.scale(tilted.z()));
+    }
     public Vec3 rest(boolean rightHand) {
-        return camera ? local(rightHand ? 0.28 : -0.13, rightHand ? -0.08 : -0.15, rightHand ? -0.09 : 0)
+        return camera ? local(rightHand ? CameraAssembly.RIGHT_REST : CameraAssembly.LEFT_GRIP)
                 : local(rightHand ? 0.28 : -0.28, 0.035, -0.20);
     }
     public Vec3 socket(Motion.Kind kind) {
         if (camera) return switch (kind) {
-            case FILM -> local(0.19, -0.065, 0.10);
-            case FLASH -> local(0.225, 0, -0.045);
-            case LENS, FILTER -> local(0, 0, -0.26);
+            case FILM -> local(CameraAssembly.FILM_SOCKET);
+            case FLASH -> local(CameraAssembly.FLASH_SOCKET);
+            case LENS, FILTER -> local(CameraAssembly.LENS_SOCKET);
             default -> work;
         };
         return switch (kind) {
@@ -376,6 +385,13 @@ public final class VisualSession {
             case PHOTO -> local(0.26, 0.04, -0.08);
             default -> work;
         };
+    }
+
+    /** Hovering previews the approach; only an actual transfer reaches underneath the body. */
+    public Vec3 hover(Motion.Kind kind) {
+        if (kind == Motion.Kind.FILM) return local(CameraAssembly.FILM_CLEARANCE);
+        if (kind == Motion.Kind.FLASH) return local(0.48,0,-0.045);
+        return socket(kind);
     }
 
     /** Clamp movement to the live eye and raycast it, so this visual adapter cannot see through walls. */
