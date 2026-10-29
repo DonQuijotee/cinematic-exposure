@@ -1,6 +1,6 @@
 # Cinematic Exposure
 
-Minecraft 1.21.1 / NeoForge 独立附属。**v0.2.3-alpha 隐藏相机界面的原版 HUD 与 EMI 叠加，并将胶卷交互移到右侧。尚未进行游戏内测试。**
+Minecraft 1.21.1 / NeoForge 独立附属。**v0.2.4-alpha 统一暗房用手并限制伸手距离，细化相机附件收尾与掏取动作，区分原版/沉浸界面入口。尚未进行游戏内测试。**
 
 依赖 Java 21、NeoForge 21.1.255、Cinematic Interactions 0.18.12、Exposure 1.9.19。依赖不打包。
 
@@ -12,7 +12,7 @@ Lightroom 使用 Cinematic 正式 `AddonStations` / `AddonScenes` / `AddonMenuSt
 
 静置物品由独立 `LightroomRenderer` 方块实体渲染器绘制，读取 Exposure 已同步的实际库存。关闭场景、重进区块和重新接近时仍可显示；物品取走或方块移除后不保留副本。不生成掉落物实体、不另存库存、不新增网络包。中央是胶卷选中帧的预览；没有胶卷时可展示成品堆顶部照片，成品槽仍位于右侧。关闭暗房模块也会关闭这些附属渲染。
 
-胶卷装卸、实际冲印开始和照片取出跟随真实容器状态，冲印时双手贴近中央照片两侧，右手沿纸边操作、左手扶纸。新状态可中断旧动作。照片堆数量使用 Exposure 的组件数据读取。
+胶卷的悬停、携带、放入和取出统一由左手完成，成品使用右手；两手目标均限制在肩部 0.74 格内。四个后排按钮仍可点击，但手势在照片两侧完成，避免伸到方块背面。胶卷装卸、实际冲印开始和照片取出跟随真实容器状态，冲印时双手贴近中央照片两侧，右手沿纸边操作、左手扶纸。新状态可中断旧动作。照片堆数量使用 Exposure 的组件数据读取。
 
 **多人服务器需要同时更新本附属和依赖。** Lightroom 的场景注册在两端执行。原方块没有标准 getMenuProvider 开放入口，且客户端菜单构造需要方块坐标，因此增加一个仅针对 Lightroom 的 MenuProvider 适配器：委托原方块实体 createMenu，并通过 NeoForge 标准菜单附加数据写入原坐标。没有替换照片生成、配方、消耗或容器协议。
 
@@ -22,7 +22,15 @@ Lightroom 使用 Cinematic 正式 `AddonStations` / `AddonScenes` / `AddonMenuSt
 
 ## 相机改装
 
+- **背包/库存中右键相机：Exposure 原改装界面**，包括它原有的库存和 EMI 行为。
+- **手持相机潜行 + 右键：沉浸改装界面**。由 Exposure 原本的使用流程打开，第三人称或关闭相机模块时仍回退原界面。
+- 不拦截拍照操作、不改变原模组的快门/启用条件；库存右键入口仍需 Exposure 的对应服务器配置开启。
+
+附件交互框显示实际放入的物品及数量，不再绘制机身上的黄色定位点。槽位图标、拖拽预览和点击使用同一坐标；只改变显示，不改附件数据。
+
 打开手持相机改装后，相机保持固定大小，由双手从画面下方托起；关闭时放回下方。左手稳定托住机身，右手操作附件。相机模型朝向与手部路径统一到同一坐标系；每次附件动作开始时固定路径，镜头/滤镜先旋松再沿镜头轴拔出，胶卷从右侧抽出，闪光灯沿侧面接口取下。安装为对准、沿接口送入、旋紧、松手。窗口/GUI 缩放变化会安全取消旧视觉轨迹，不重复物品操作。
+
+相机与暗房从库存选中物品时，先空手下探，在画面下方出现物品，再抬回操作区；已在手上的物品直接安装，Shift 快速安装也补上掏取动作。动画只观察原菜单，不延迟/重放物品操作。快速换物、菜单校正、缩放或退出会中断或替换视觉动作。镜头/滤镜只旋转附件，不再绕接口旋转整条手臂；动作结束先回到休息位，再恢复悬停跟随。
 
 物品栏使用 **Cinematic 原 SceneScreen 抽屉面板**：顶部快捷栏常显，鼠标移入后展开背包，移开后收起；Tab 可以固定展开，再按取消固定。相机位于抽屉下方，展开不挪动附件目标。通过局部 Mixin 调用宿主面板与命中逻辑，原有暗房及其他工作站不受此私有抽屉实例影响。未复制依赖 JAR 或纹理。
 
@@ -56,10 +64,10 @@ speed = 1.0
 python3 tools/verify-artifact.py
 ```
 
-代理云环境可用 `python3 tools/cloud-build.py build --stacktrace`，保留 TLS 校验。产物为 `build/libs/cinematic-exposure-1.21.1-neoforge-0.2.3-alpha.jar`。
+代理云环境可用 `python3 tools/cloud-build.py build --stacktrace`，保留 TLS 校验。产物为 `build/libs/cinematic-exposure-1.21.1-neoforge-0.2.4-alpha.jar`。
 
-GitHub Actions 支持 push、PR 和手动构建。手动启用 release 后，仅在构建与打包检查成功时发布 v0.2.3-alpha Pre-release，并上传同次构建的 JAR。不会覆盖旧版 Release。
+GitHub Actions 支持 push、PR 和手动构建。手动启用 release 后，仅在构建与打包检查成功时发布 v0.2.4-alpha Pre-release，并上传同次构建的 JAR。不会覆盖旧版 Release。
 
-没有启动 Minecraft 客户端或服务器。需要玩家验证台面拾取范围、镜头构图、手部/物品穿模、预览与库存抽屉布局、光影及多人同步。默认皮肤/模型之外的资源包可能需要进一步调位。
+没有启动 Minecraft 客户端或服务器。手部距离限制可能在极端 GUI 缩放、侧身或资源包模型下造成手指未完全贴合接口，需要实测微调；未宣称已解决所有穿模。需要玩家验证台面拾取范围、镜头构图、手部/物品穿模、预览与库存抽屉布局、光影及多人同步。默认皮肤/模型之外的资源包可能需要进一步调位。
 
 源码分析见 [docs/source-analysis.md](docs/source-analysis.md)，许可证见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

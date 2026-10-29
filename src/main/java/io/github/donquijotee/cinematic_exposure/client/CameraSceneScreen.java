@@ -74,8 +74,14 @@ public final class CameraSceneScreen extends AbstractContainerScreen<CameraInHan
         double depth = Math.max(0.85, 0.60*height/(2*Math.tan(Math.toRadians(33))*Math.max(64,height-top-24)));
         double down = (2*cy/height-1)*depth*Math.tan(Math.toRadians(33));
         double pitch = Math.toRadians(18);
-        return eye.add(forward.scale(0.045+depth*Math.cos(pitch)-down*Math.sin(pitch)))
+        Vec3 work = eye.add(forward.scale(0.045+depth*Math.cos(pitch)-down*Math.sin(pitch)))
                 .add(0,-0.03-depth*Math.sin(pitch)-down*Math.cos(pitch),0);
+        // A small GUI viewport must not place the body metres away just to fit its projection.
+        // Move the body with the supporting grip so the left hand still touches the camera.
+        Vec3 viewEye = eye.add(forward.scale(0.045)).add(0,-0.03,0);
+        Vec3 shoulder = HandReach.shoulder(viewEye, forward, false);
+        Vec3 grip = work.add(right.scale(-0.13)).add(0,-0.15,0);
+        return work.add(HandReach.limit(grip,shoulder).subtract(grip));
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
@@ -89,10 +95,6 @@ public final class CameraSceneScreen extends AbstractContainerScreen<CameraInHan
             graphics.renderOutline(x-10, y-10, 20, 20, hoveredAttachment()==i ? 0xFFFFCC66 : 0x90707070);
             if (hoveredAttachment()==i)
                 graphics.drawCenteredString(font, Component.translatable("cinematic_exposure.target."+key), x, y+12, 0xFFFFCC66);
-            // Keep a small marker on the physical attachment when targets need separation.
-            var session = VisualSession.get();
-            double[] anchor = session == null ? null : Picking.toGui(session.socket(kind(i)));
-            if (anchor != null) graphics.fill((int)anchor[0]-1, (int)anchor[1]-1, (int)anchor[0]+2, (int)anchor[1]+2, 0xFFFFCC66);
         }
         graphics.drawString(font, Component.translatable("cinematic_exposure.camera.hint"), 8, height-12, 0xFFFFFFFF);
         renderTooltip(graphics, mouseX, mouseY);
@@ -108,7 +110,17 @@ public final class CameraSceneScreen extends AbstractContainerScreen<CameraInHan
     @Override protected void renderLabels(GuiGraphics graphics, int x, int y) {}
 
     @Override protected void renderSlot(GuiGraphics graphics, Slot slot) {
-        if (slot.index < inputs() || !drawer.visible(slot)) return;
+        if (slot.index < inputs()) {
+            double[] point = attachmentPoint(slot.index);
+            if (point == null) return;
+            graphics.pose().pushPose();
+            graphics.pose().translate(point[0]-8-slot.x, point[1]-8-slot.y, 0);
+            // Use the actual Exposure slot, including quick-craft previews and item decorations.
+            super.renderSlot(graphics, slot);
+            graphics.pose().popPose();
+            return;
+        }
+        if (!drawer.visible(slot)) return;
         graphics.enableScissor(drawer.x, Math.max(0,drawer.y), drawer.x+drawer.width, drawer.y+drawer.height);
         graphics.pose().pushPose();
         graphics.pose().translate(drawer.slotX(slot), drawer.slotY(slot), 0);

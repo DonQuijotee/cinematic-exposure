@@ -1,3 +1,15 @@
+# v0.2.4-alpha 构建记录
+
+2026-10-29（Asia/Shanghai）。Java 21.0.9 / Gradle 8.8 / NeoForge 21.1.255。分阶段 compileJava 成功，最终通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，结果 BUILD SUCCESSFUL（首轮 10 秒，最终修正后 7 秒）。没有关闭 TLS 校验。
+
+`tools/verify-artifact.py` 通过：Java 21 字节码、版本/依赖、Mixin 类、语言键、许可证、无嵌套依赖，以及官方 Cinematic 0.18.12 JAR 的抽屉接口和 Hands.position/drawArm 签名。使用 javap 解析字节码，不执行游戏类。`git diff --check` 通过。
+
+产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.2.4-alpha.jar`。Actions 配置继续在独立成功构建后才发布同次 JAR，实际远程状态以 Actions 日志为准。
+
+未启动 Minecraft、未做游戏内、服务端、Mixin 实际应用或视觉验证。Gradle test 为 NO-SOURCE，不宣称动画测试通过。需实测重点：左右手一致性、可达距离与接口贴合、附件旋转收尾、库存/潜行两种打开方式、拖拽预览、快速换物与中断时掏取。极端缩放/侧身可能因限距而使手指略离物品。
+
+以下保留旧版本记录。
+
 # v0.2.3-alpha 构建记录
 
 Java 21 / Gradle 8.8，执行 `./gradlew build --stacktrace`（通过 cloud-build.py 提供云代理/CA）成功。JAR 静态检查通过；额外以 javap 检查官方 EMI 1.1.22 与 1.1.24 NeoForge JAR 中目标方法及 null-screen 行为。EMI 不作为必需依赖，不打包其 JAR。

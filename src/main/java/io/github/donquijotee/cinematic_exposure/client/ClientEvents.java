@@ -62,7 +62,8 @@ public final class ClientEvents {
         if (ClientConfig.CAMERA.get() && net.minecraft.client.Minecraft.getInstance().options.getCameraType().isFirstPerson()
                 && event.getNewScreen() instanceof
                 io.github.mortuusars.exposure.client.gui.screen.camera.CameraAttachmentsScreen screen
-                && screen.getMenu() instanceof io.github.mortuusars.exposure.world.inventory.CameraInHandAttachmentsMenu menu) {
+                && screen.getMenu() instanceof io.github.mortuusars.exposure.world.inventory.CameraInHandAttachmentsMenu menu
+                && !menu.isOpenedFromGui()) {
             event.setNewScreen(new CameraSceneScreen(menu));
         }
     }

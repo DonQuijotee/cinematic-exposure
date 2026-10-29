@@ -10,6 +10,11 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 /** Reuses the host's skin and sleeve renderer. No Scene fields are changed. */
 @Mixin(value = Hands.class, remap = false)
 public interface HandsInvoker {
+    @Invoker("position")
+    static Vec3 cinematicExposure$position(boolean right) {
+        throw new AssertionError("Mixin invoker was not applied");
+    }
+
     @Invoker("drawArm")
     static void cinematicExposure$drawArm(PoseStack pose, MultiBufferSource buffers, Vec3 camera,
             Vec3 hand, Vec3 shoulder, boolean right, int light, Vec3 forward) {

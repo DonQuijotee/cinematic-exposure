@@ -61,6 +61,9 @@ public final class VisualSession {
     private Vec3 smoothRight;
     private Vec3 smoothLeft;
     private double frameStep;
+    final HandPickup pickup = new HandPickup();
+    private double settle;
+    private boolean motionFromHand;
 
     private VisualSession(AbstractContainerMenu menu, boolean camera) {
         Minecraft mc = Minecraft.getInstance();
@@ -117,6 +120,11 @@ public final class VisualSession {
             return;
         }
         if (mc.isPaused()) return;
+        if (mc.screen != null && !(mc.screen instanceof CameraSceneScreen)) {
+            // A normal Exposure/inventory window must never inherit the immersive camera or arm overlay.
+            current = null;
+            return;
+        }
         boolean supported = supports(mc.screen);
         if (current != null && supported && current.menu != mc.player.containerMenu) current = null;
         if (current == null && supported) {
@@ -130,6 +138,7 @@ public final class VisualSession {
                 // Window/GUI scale changes invalidate captured animation anchors, never the real operation.
                 s.motion = null; s.pending.clear(); s.action = null; s.actionMotion = null;
                 s.smoothRight = null;
+                s.pickup.reset();
                 s.snapshot();
             }
             s.work = nextWork;
@@ -157,15 +166,24 @@ public final class VisualSession {
         }
         double step = dt * ClientConfig.SPEED.get();
         s.frameStep = step;
+        s.settle = Math.max(0, s.settle-step);
         s.transitionTime += step;
         s.weight = Mth.lerp(Motion.ease(s.transitionTime / 0.65), s.fromWeight, s.leaving ? 0 : 1);
         if (!s.leaving) {
             s.detect();
-            if (s.motion == null && s.weight > 0.99) s.motion = s.pending.poll();
+            if (s.motion == null && s.weight > 0.99) {
+                s.motion = s.pending.poll();
+                s.motionFromHand = s.motion != null && s.motion.inserting && s.pickup.holds(s.motion.item);
+            }
             if (s.motion != null) {
                 s.motion.advance(step);
-                if (s.motion.done()) s.motion = null;
+                if (s.motion.done()) { s.motion = null; s.settle = 0.25; }
             }
+            Vec3 eye = mc.gameRenderer.getMainCamera().getPosition();
+            boolean transfer = s.motion != null || !s.pending.isEmpty();
+            s.pickup.observe(s.menu.getCarried(), s.smoothRight == null ? s.rest(true) : s.smoothRight,
+                    HandReach.pocket(eye, s.forward, true), s.rest(true), !transfer);
+            s.pickup.advance(step);
         }
         if (s.leaving && s.weight < 0.001) current = null;
     }
@@ -180,6 +198,7 @@ public final class VisualSession {
         if (current != null && current.menu.containerId == containerId) {
             current.pending.clear();
             current.motion = null;
+            current.pickup.reset();
             if (!current.camera || current.hasCamera()) current.snapshot();
         }
     }
@@ -313,7 +332,8 @@ public final class VisualSession {
                 default -> forward.scale(-1);
             };
             action = new CameraAction(motion, smoothRight == null ? rest(true) : smoothRight,
-                    rest(true), local(0.34, -0.03, -0.30), socket(motion.kind), outward);
+                    rest(true), HandReach.pocket(Minecraft.getInstance().gameRenderer.getMainCamera().getPosition(), forward, true),
+                    socket(motion.kind), outward, motionFromHand);
             actionMotion = motion;
         }
         return action;
@@ -325,12 +345,17 @@ public final class VisualSession {
     }
 
     public Vec3 smooth(boolean rightHand, Vec3 target) {
+        var view = Minecraft.getInstance().gameRenderer.getMainCamera();
+        Vec3 shoulder = HandReach.shoulder(view.getPosition(), direction(view.getYRot()), rightHand);
+        target = HandReach.limit(target, shoulder);
         Vec3 previous = rightHand ? smoothRight : smoothLeft;
         Vec3 next = previous == null ? target : previous.lerp(target, 1 - Math.exp(-frameStep * 20));
+        next = HandReach.limit(next, shoulder);
         if (rightHand) smoothRight = next; else smoothLeft = next;
         return next;
     }
     public double weight() { return weight; }
+    public boolean canHover() { return settle <= 0 && !pickup.active(); }
     public Vec3 local(double x, double y, double z) {
         return work.add(right.scale(x)).add(0, y, 0).add(forward.scale(z));
     }

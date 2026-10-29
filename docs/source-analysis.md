@@ -1,3 +1,15 @@
+# v0.2.4 手部范围、入口分流与掏取
+
+- 重新核对 Cinematic 0.18.12 的 Hands.follow：普通目标才会应用 maxReach，handsOverride 提前返回而不限制距离；默认 maxReach 为无限。Lightroom 以前在 hover 使用宿主左右选手，动画则固定右手，且道具使用未平滑的目标坐标。本版覆盖双手目标并统一限距，胶卷固定左手，道具通过 Hands.position 的只读 Invoker 跟随实际弹簧平滑后的手。宿主仍渲染皮肤、袖子、进出场过渡；没有重写手臂模型。
+- Lightroom 后排四个控制标签保留，手势移至照片边缘而非远端标签；点击仍调用原按钮/槽位路径。非 ACTIVE 阶段只同步视觉快照，不把初始菜单同步误当成装卸动作。持久 BER 和照片生成未改。
+- SceneDrawing 旧旋转矩阵把手腕和整条手臂（连同肩部）一起绕接口转动；移除该矩阵，旋转仅用于附件。相机路径结束后加入短暂回位阶段，防止立刻再次伸向鼠标下的接口。左右手均限距，小窗口构图同时约束机身与左手握点。
+- Exposure CameraItem.overrideOtherStackedOnMe 调用 openCameraAttachments(..., true)，手持相机 use 的 secondary-use 路径传 false；服务器原菜单附加数据同步 openedFromGUI。ClientEvents 直接读取 isOpenedFromGui，仅 false 使用沉浸适配，不猜测收到网络包时 Shift 是否仍按下，不新增打开请求。
+- CameraSceneScreen 移除黄色点，并在附件框内转换绘制坐标后调用原 AbstractContainerScreen.renderSlot；原槽位不移动，保留数字、空槽背景与拖拽预览。普通 Exposure GUI 不再应用附属的 HUD/EMI 排除。
+- HandPickup 观察 carried 物品身份，先空手下探，底部换物后抬回；数量变化不重复触发。已发生装卸时直接接管动作，不再额外掏一遍。Shift 安装没有 carried 时走同样的下探路径。全程不发送操作或写菜单。手臂/物品的实际视觉效果仍待游戏内验证。
+- 静态打包检查增加官方 Cinematic JAR 中 Hands.position(boolean) 与 drawArm 的签名检查；不启动游戏或执行其类。
+
+以下为历史版本记录。
+
 # v0.2.3 相机叠加层与胶卷交互
 
 - Cinematic Overlay.hides 只在 Scene.active 时隐藏 HUD，独立手持相机 VisualSession 不满足该条件。ClientEvents 现为 CameraSceneScreen 和无其他窗口的退出过渡应用同样的 HUD 保留名单，不改游戏选项、不影响普通库存界面。

@@ -13,7 +13,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import io.github.mortuusars.exposure.world.item.camera.CameraItem;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-import org.joml.Quaternionf;
 
 /** Uses original Exposure item models and the host's existing first-person arm renderer. */
 public final class SceneDrawing {
@@ -29,16 +28,16 @@ public final class SceneDrawing {
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         int light = LevelRenderer.getLightColor(mc.level, session.lightPos);
         Vec3 facing = VisualSession.direction(camera.getYRot());
-        Vec3 side = new Vec3(-facing.z, 0, facing.x);
         double weight = session.weight();
-        Vec3 leftShoulder = eye.add(side.scale(-0.34)).add(0, -0.43, 0).add(facing.scale(0.06));
-        Vec3 rightShoulder = eye.add(side.scale(0.34)).add(0, -0.43, 0).add(facing.scale(0.06));
+        Vec3 leftShoulder = HandReach.shoulder(eye, facing, false);
+        Vec3 rightShoulder = HandReach.shoulder(eye, facing, true);
         Vec3 rightHand = session.rest(true);
         Vec3 leftHand = session.rest(false);
         Motion motion = session.motion;
         CameraAction action = session.action();
         if (action != null) rightHand = action.hand();
-        if (motion == null && mc.screen instanceof CameraSceneScreen screen) {
+        if (motion == null && session.pickup.active()) rightHand = session.pickup.hand();
+        if (motion == null && session.canHover() && mc.screen instanceof CameraSceneScreen screen) {
             int slot = screen.hoveredAttachment();
             if (slot >= 0 && slot < screen.getMenu().slots.size()-36) rightHand = session.socket(screen.kind(slot));
         }
@@ -47,19 +46,13 @@ public final class SceneDrawing {
         rightHand = rightHand.add(entrance);
         // The camera and supporting hand must stay locked together throughout the lift.
         rightHand = session.smooth(true, rightHand);
+        leftHand = HandReach.limit(leftHand, leftShoulder);
+        rightHand = HandReach.limit(rightHand, rightShoulder);
         if (weight > 0.01) {
             HandsInvoker.cinematicExposure$drawArm(pose, buffers, eye, leftHand, leftShoulder, false, light, session.forward);
-            pose.pushPose();
-            if (action != null && action.showsItem() && action.twist() != 0) {
-                Vec3 axis = session.forward.scale(-1);
-                Vec3 pivot = rightHand.subtract(eye);
-                pose.translate(pivot.x, pivot.y, pivot.z);
-                pose.mulPose(new Quaternionf().rotationAxis((float) Math.toRadians(action.twist()),
-                        (float) axis.x, (float) axis.y, (float) axis.z));
-                pose.translate(-pivot.x, -pivot.y, -pivot.z);
-            }
+            // Turning the entire arm about the socket also rotated the shoulder off the body.
+            // Keep the arm anchored; only the held attachment turns during fastening.
             HandsInvoker.cinematicExposure$drawArm(pose, buffers, eye, rightHand, rightShoulder, true, light, session.forward);
-            pose.popPose();
         }
         if (weight > 0.001) {
             item(pose, buffers, eye, session.cameraStack(), session.work.add(entrance), session.forward,
@@ -70,7 +63,8 @@ public final class SceneDrawing {
             item(pose, buffers, eye, motion.item, held, session.forward,
                     0.22f, motion.kind == Motion.Kind.FILM ? 10 : 0, action.twist(), light);
         }
-        if (motion == null && mc.screen instanceof CameraSceneScreen screen && !screen.getMenu().getCarried().isEmpty()) {
+        if (motion == null && session.pickup.showsItem() && weight > 0.99
+                && mc.screen instanceof CameraSceneScreen screen && !screen.getMenu().getCarried().isEmpty()) {
             item(pose,buffers,eye,screen.getMenu().getCarried(),rightHand,session.forward,0.22f,0,0,light);
         }
         buffers.endBatch();
