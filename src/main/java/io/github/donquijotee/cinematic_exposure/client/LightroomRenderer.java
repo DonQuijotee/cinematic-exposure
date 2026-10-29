@@ -62,7 +62,7 @@ public final class LightroomRenderer implements BlockEntityRenderer<LightroomBlo
         pose.translate(0, 0, -0.001);
         io.github.mortuusars.exposure.ExposureClient.imageRenderer().render(image, pose, buffers,
                 new io.github.mortuusars.exposure.client.render.image.RenderCoordinates(-w/2, -h/2, w, h),
-                light, io.github.mortuusars.exposure.util.color.Color.WHITE);
+                light, photographTint(entity));
         // A small printing lamp at the edge, never over the photograph; use Exposure's synced state.
         if (entity.isPrinting()) {
             float pulse = (float)(0.65 + 0.35 * Math.sin(dev.dyslexic.cinematic.client.Scene.clock() * 5));
@@ -70,6 +70,21 @@ public final class LightroomRenderer implements BlockEntityRenderer<LightroomBlo
             quad(pose, buffers, -0.12f, h/2+0.022f, 0.12f, h/2+0.032f, color);
         }
         pose.popPose();
+    }
+
+    private static io.github.mortuusars.exposure.util.color.Color photographTint(LightroomBlockEntity entity) {
+        var player = net.minecraft.client.Minecraft.getInstance().player;
+        // Exposure synchronizes progress through the open menu's ContainerData, not continuously to
+        // every observer. Only fade when that authoritative stream belongs to this particular block.
+        // Outside the menu, keep the persistent preview visible rather than using a stale progress value.
+        if (entity.isPrinting() && player != null
+                && player.containerMenu instanceof io.github.mortuusars.exposure.world.inventory.LightroomMenu menu
+                && menu.getBlockEntity() == entity) {
+            float alpha = (float) Motion.ease(entity.getProgressPercentage());
+            // The paper and border stay opaque; only the image develops from blank to full colour.
+            return io.github.mortuusars.exposure.util.color.Color.argbF(alpha,1,1,1);
+        }
+        return io.github.mortuusars.exposure.util.color.Color.WHITE;
     }
 
     private static void quad(PoseStack pose, MultiBufferSource buffers, float x0, float y0, float x1, float y1, int color) {

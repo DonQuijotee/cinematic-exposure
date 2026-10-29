@@ -1,10 +1,12 @@
 # Cinematic Exposure
 
-Minecraft 1.21.1 / NeoForge 独立附属。**v0.2.6-alpha 改为侧向相机装配，简化动作并按附件位置分配左右手。尚未进行游戏内测试。**
+Minecraft 1.21.1 / NeoForge 独立附属。**v0.2.7-alpha 为暗房中央预览增加跟随实际冲印进度的淡入效果。尚未进行游戏内测试。**
 
 依赖 Java 21、NeoForge 21.1.255、Cinematic Interactions 0.18.12、Exposure 1.9.19。依赖不打包。
 
 ## 暗房
+
+实际冲印开始后，中央照片从空白相纸逐渐显现，透明度按 Exposure 同步的冲印进度缓入缓出；相纸底色和边框保持可见。完成或取消后恢复完整预览。不改变图片颜色、比例、贴图或照片数据；动画速度设置不改变真实冲印进度。进度只在本机打开该暗房原菜单时持续同步，因此淡入在该菜单/沉浸交互期间启用，退出后仍完整显示台面预览，不使用过期进度或新增同步包。创造模式的瞬时冲印没有持续进度，保留即时显示。
 
 Lightroom 使用 Cinematic 正式 `AddonStations` / `AddonScenes` / `AddonMenuStation` API，参照宿主 SmithingStation 和官方附属示例：由宿主处理走近工作台、抵达后俯身、相机与双手过渡、库存抽屉、退出及服务器会话。镜头目标为台面前方 0.70 格、上方 0.62 格，俯角 40°；不再受旧独立适配器的 0.35 格位移限制。
 
@@ -70,9 +72,9 @@ speed = 1.0
 python3 tools/verify-artifact.py
 ```
 
-代理云环境可用 `python3 tools/cloud-build.py build --stacktrace`，保留 TLS 校验。产物为 `build/libs/cinematic-exposure-1.21.1-neoforge-0.2.6-alpha.jar`。
+代理云环境可用 `python3 tools/cloud-build.py build --stacktrace`，保留 TLS 校验。产物为 `build/libs/cinematic-exposure-1.21.1-neoforge-0.2.7-alpha.jar`。
 
-GitHub Actions 支持 push、PR 和手动构建。手动启用 release 后，仅在构建与打包检查成功时发布 v0.2.6-alpha Pre-release，并上传同次构建的 JAR。不会覆盖旧版 Release。
+GitHub Actions 支持 push、PR 和手动构建。手动启用 release 后，仅在构建与打包检查成功时发布 v0.2.7-alpha Pre-release，并上传同次构建的 JAR。不会覆盖旧版 Release。
 
 验证脚本另运行纯 Java 装配几何检查（CameraAssembly，无 Minecraft 类或依赖在运行类路径中）：检查侧向朝向、变换可逆、路径连续性、左右握点距离、原版闪光灯与手掌/袖子/胶卷的采样间距，以及平滑路径。普通与金色闪光灯共用此几何模型。该检查不能替代实际渲染验证，资源包改模不在此包围盒保证范围内。
 

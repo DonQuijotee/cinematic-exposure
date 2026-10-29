@@ -1,3 +1,12 @@
+# v0.2.7 暗房预览淡入
+
+- 实查 Exposure LightroomBlockEntity：getProgressPercentage 返回 progress/printTime，isPrinting 读取方块 PRINTING 状态。LightroomMenu.addDataSlots 使用原 ContainerData 持续同步进度/总时长，普通旁观客户端不持续获得这些数据。
+- LightroomRenderer 在对应真实 LightroomMenu 打开且该 BE 正在冲印时，仅将中央图像的 alpha 设置为原百分比的平滑曲线；纸底和边框不透明。空闲、完成、取消、退出后按原方式完整显示预览，避免进度清零造成照片消失。无本地计时猜测、无网络包、无容器写入。
+- Exposure ImageRenderer 的 Color 参数传到 RenderedImageInstance 顶点色；mipmap 渲染类型明确使用 TRANSLUCENT_TRANSPARENCY，非 mipmap 使用原 RenderType.text。复用原透明渲染，不修改图像像素或全局 shaderColor。真实时长由 Exposure 决定，附属动画速度不影响淡入进度。创造模式瞬时冲印不伪造长过程。
+- 本次只修改暗房图像绘制与版本/文档，不改变相机姿态或暗房手部动作。未进行游戏内验证。
+
+以下为历史版本记录。
+
 # v0.2.6 侧向装配重做
 
 - 用户反馈 v0.2.5 的动画观感混乱。原版模型尺寸的纯数学检查不能证明动画自然；本次不继续增加绕行，而是将装配姿态改为机身侧对玩家：模型额外 Y 旋转 -80°、X 旋转 8°，镜头朝左、后部胶卷朝右。

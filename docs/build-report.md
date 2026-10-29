@@ -1,3 +1,15 @@
+# v0.2.7-alpha 构建记录
+
+2026-10-30（Asia/Shanghai）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（8 秒）；TLS 校验保持开启。
+
+`tools/verify-artifact.py` 通过：Java 21 字节码、元数据、语言、Mixin 类及宿主接口检查；既有相机几何回归检查 238356 个采样通过。本次仅修改暗房中央图像的渲染颜色透明度，用当前原菜单同步的冲印进度驱动，不更改游戏逻辑或相机动作。
+
+产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.2.7-alpha.jar`。Actions 在成功构建和检查后发布同次产物，远程结果以实际工作流日志为准。
+
+未启动 Minecraft、客户端或服务器，未进行游戏内或画面测试。待验证透明混合、相纸上的显影观感、光影与资源包兼容。旁观者不接收原菜单的持续进度，保持完整预览；创造模式瞬时冲印即时显示。
+
+以下保留旧版本记录。
+
 # v0.2.6-alpha 构建记录
 
 2026-10-29（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。分阶段 compileJava 成功，最终通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（8 秒）。TLS 校验保持开启。
