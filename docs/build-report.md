@@ -1,3 +1,17 @@
+# v0.2.10-alpha 构建记录
+
+2026-10-30（Asia/Shanghai）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。阶段 compileJava 成功；最终通过云代理/CA 助手运行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（8 秒），TLS 校验保持开启。
+
+`tools/verify-artifact.py` 打包和宿主接口检查通过。独立纯 Java 检查包括：1096128 个胶卷路径采样、光标活动区域、接口顶部方向、位姿变换、可达距离、路径连续性、原模型闪光灯/手掌/袖子/胶卷间距；30/60/144 FPS、.25/1/3 倍速的平滑路径。新增光标渐缓边界和换手缓冲检查，以及 1752 个递手采样、单个物品随实际平滑手位交接、完成和中断检查。
+
+检查曾发现斜向机身过低时袖子擦过闪光灯，已约束机身高度并调整为 60° 斜向、顶部后缘通道，最终采样最小间距约 .00766 格。它不是完整碰撞系统，也不能证明观感。运行类路径仅为附属 JAR，未加载 Minecraft 类。另用 javap 核对实际 NeoForge 生成类中私有 renderFloatingItem 的参数/返回类型，支持本次局部 Mixin 的静态签名检查。
+
+产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.2.10-alpha.jar`。Actions 运行完整构建与上述纯数学检查，成功后才发布同次产物。
+
+未启动 Minecraft、客户端或服务器，未进行游戏内或画面测试。需验证自由跟随、递手观感、快速点击/换物/取消、装卸收尾、Mixin 实际注入、极端缩放及光影/替换模型资源包。相机原模型没有新增可开启胶卷舱盖。
+
+以下保留旧版本记录。
+
 # v0.2.9-alpha 构建记录
 
 2026-10-30（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。负片渲染与光照条移除后 compileJava --stacktrace 成功（8 秒）；最终通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（6 秒）。TLS 校验保持开启。

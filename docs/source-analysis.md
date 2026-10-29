@@ -1,3 +1,15 @@
+# v0.2.10 光标交互与相机顶部装卷
+
+- 重新核对 Cinematic 0.18.12 的 TableStation.updateCursor / handTarget / handsOverride、Picking 和 Hands.follow。合成台将光标射线投到台面，连续 aim 与 hoverCell 独立，目标限制在块内 .07..93；普通手位使用 Spring3，工作手切换有滞回阈值。ClientStation.maxReach 默认无限，特殊 handsOverride 分支也不会经过普通距离限制，故附属仍自行限制双手 .74 格。
+- LightroomStation 现在在工作区持续生成 aim，边界渐缓限制；槽位吸附权重按距离连续变化，但点击仍使用原槽位命中。后排按钮仍使用照片边缘的安全动作目标，避免长距离伸手。正常持物跨区时使用 HandExchange：两手靠拢、单个视觉道具在实际平滑手位之间交接、接手后继续光标目标。中线存在缓冲区域；装卸/掏取期间锁定手，胶卷装卸前若需要先递给左手，仅延后视觉，不改变已发生的原操作。
+- HandPickup 回程接入当前跟随位置；暗房取放收尾及相机装卸收尾也衔接当前目标。镜头/滤镜用左手，胶卷/闪光灯用右手，相机另一手支撑机身。相机自由持物点约束在镜头前/机身后，不横穿机身；最大距离裁剪沿安全持物锚点到目标的线段完成。
+- CameraAssembly 姿态 Y=-60°、X=12°，镜头斜向左前方。模型原 body=[5,0,4]..[11,6,12]，中心=[8,3,8]，缩放 .72。胶卷手部接口位于模型局部 (0,.18,.20)，外侧点 (0,.39,.20)，插入沿局部 -Y；经后缘 (.0,.12,.44) 进出，不从闪光灯一侧横穿。此为原资源上的视觉装配，没有重新建模开舱盖。
+- 数学检查发现机身过低时右袖会靠近闪光灯；fitWork 同时约束机身高度和两手可达性。扩展采样覆盖光标边界起点、入/出、手持/掏取、30/60/144 FPS 和 .25/1/3 倍速。检查的是原模型的包围范围，不是游戏碰撞引擎或画面验证。
+- 查阅实际 NeoForge 生成源码，AbstractContainerScreen.renderFloatingItem 为私有方法；增加仅作用于 CameraSceneScreen 工作区的精准 Mixin，隐藏重复 carried 图标。抽屉、quick-craft、触屏保留原渲染和全部容器行为。没有替换槽位、消费物品或发送新操作包。
+- 新 HandExchange 与 InteractionMotion 使用纯 Java 数学类型，可独立验证而无需加载游戏。原 LightroomRenderer 负片显影及持久物品显示保持。
+
+以下为历史版本记录。
+
 # v0.2.9 负片显影与移除光照条
 
 - Exposure 提供 RenderableImage.modifyWith(ImageEffect.NEGATIVE)，底层 ModifiedImage 是只读像素包装，保留 alpha。使用负片作为不透明底图、原图作为渐显上层；NEGATIVE_FILM 会按亮度修改 alpha，不适合本次相纸上的预览，故不用。

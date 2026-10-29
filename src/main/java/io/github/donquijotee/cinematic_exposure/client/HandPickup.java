@@ -27,9 +27,14 @@ public final class HandPickup {
         return showsItem() && !active() && ItemStack.isSameItemSameComponents(observed, stack);
     }
     public Vec3 hand() {
+        return hand(rest);
+    }
+
+    /** Keep the pickup's empty-hand descent, but let its return meet the live cursor smoothly. */
+    public Vec3 hand(Vec3 destination) {
         double t = time / DURATION;
         if (t < 0.45) return start.lerp(pocket, Motion.window(t, 0, 0.45));
         if (t < 0.55) return pocket;
-        return pocket.lerp(rest, Motion.window(t, 0.55, 1));
+        return pocket.lerp(destination, Motion.window(t, 0.55, 1));
     }
 }

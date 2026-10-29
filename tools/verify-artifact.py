@@ -8,13 +8,13 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 jar = Path(sys.argv[1]) if len(sys.argv) > 1 else (
-    root / 'build/libs/cinematic-exposure-1.21.1-neoforge-0.2.9-alpha.jar'
+    root / 'build/libs/cinematic-exposure-1.21.1-neoforge-0.2.10-alpha.jar'
 )
 with zipfile.ZipFile(jar) as archive:
     names = set(archive.namelist())
     metadata = tomllib.loads(archive.read('META-INF/neoforge.mods.toml').decode())
     assert metadata['mods'][0]['modId'] == 'cinematic_exposure'
-    assert metadata['mods'][0]['version'] == '0.2.9-alpha'
+    assert metadata['mods'][0]['version'] == '0.2.10-alpha'
     dependencies = {dep['modId'] for dep in metadata['dependencies']['cinematic_exposure']}
     assert dependencies == {'minecraft', 'neoforge', 'exposure', 'cinematic'}
     config = json.loads(archive.read('cinematic_exposure.mixins.json'))
@@ -64,8 +64,11 @@ for signature in [
     assert signature in hands, f'Cinematic hands ABI changed: {signature}'
 print('PASS: actual Cinematic JAR contains both hand-rendering/position invoker targets')
 
-# Execute only CameraAssembly's pure Java math with no Minecraft/dependency classes on the classpath.
+# Execute only addon geometry/controllers with no Minecraft/dependency classes on the classpath.
 java = str(Path(os.environ['JAVA_HOME']) / 'bin/java') if os.environ.get('JAVA_HOME') else shutil.which('java')
 assert java, 'Java 21 is required for the isolated assembly geometry check'
 subprocess.run([java, '-Xmx256m', '--class-path', str(jar),
                 str(root / 'tools/CheckCameraAssembly.java')], check=True)
+
+subprocess.run([java, '-Xmx256m', '--class-path', str(jar),
+                str(root / 'tools/CheckInteractions.java')], check=True)

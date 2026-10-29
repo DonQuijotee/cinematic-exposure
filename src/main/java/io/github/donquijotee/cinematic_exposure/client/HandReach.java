@@ -20,4 +20,11 @@ public final class HandReach {
     public static Vec3 pocket(Vec3 eye, Vec3 forward, boolean right) {
         return shoulder(eye, forward, right).add(forward.scale(0.04)).add(0, -0.46, 0);
     }
+
+    /** Limit a free target along its safe anchor segment, rather than pulling it through the camera body. */
+    public static Vec3 fromAnchor(Vec3 anchor, Vec3 target, Vec3 shoulder) {
+        var limited = CameraAssembly.reachableFrom(point(anchor),point(target),point(shoulder),MAX);
+        return new Vec3(limited.x(),limited.y(),limited.z());
+    }
+    private static CameraAssembly.Point point(Vec3 v) { return new CameraAssembly.Point(v.x,v.y,v.z); }
 }

@@ -63,6 +63,8 @@ public final class VisualSession {
     private double frameStep;
     final HandPickup pickup = new HandPickup();
     private boolean motionFromHand;
+    private Vec3 cursorTarget;
+    private boolean cursorRight;
 
     private VisualSession(AbstractContainerMenu menu, boolean camera) {
         Minecraft mc = Minecraft.getInstance();
@@ -299,8 +301,8 @@ public final class VisualSession {
             // This detached display copy is never returned to any menu or network code.
             // Hide the installed part until seating; retain a removed part until the hand reaches it.
             if (motion.inserting) {
-                if (motion.progress() < 0.80) display.remove(attachment.component());
-            } else if (motion.progress() < (motion.kind == Motion.Kind.FILM ? 0.22 : 0.18)) {
+                if (motion.progress() < (motion.kind == Motion.Kind.FILM ? 0.74 : 0.80)) display.remove(attachment.component());
+            } else if (motion.progress() < (motion.kind == Motion.Kind.FILM ? 0.43 : 0.18)) {
                 display.set(attachment.component(), new StoredItemStack(motion.item.copy()));
             } else display.remove(attachment.component());
         }
@@ -329,7 +331,7 @@ public final class VisualSession {
         if (motion == null) { action = null; actionMotion = null; return null; }
         if (actionMotion != motion) {
             Vec3 outward = switch (motion.kind) {
-                case FILM -> assemblyOffset(new CameraAssembly.Point(0,0,1),forward,right);
+                case FILM -> assemblyOffset(new CameraAssembly.Point(0,1,0),forward,right);
                 case FLASH -> assemblyOffset(new CameraAssembly.Point(1,0,0),forward,right);
                 default -> assemblyOffset(new CameraAssembly.Point(0,0,-1),forward,right);
             };
@@ -338,10 +340,51 @@ public final class VisualSession {
             action = new CameraAction(motion,previous == null ? rest(rightHand) : previous,
                     motion.inserting ? rest(rightHand) : carry(rightHand),
                     HandReach.pocket(Minecraft.getInstance().gameRenderer.getMainCamera().getPosition(),forward,rightHand),
-                    socket(motion.kind),outward,motionFromHand,local(CameraAssembly.FILM_OUTSIDE));
+                    socket(motion.kind),outward,motionFromHand,local(CameraAssembly.FILM_OUTSIDE),local(CameraAssembly.FILM_GATE));
             actionMotion = motion;
         }
         return action;
+    }
+
+    /** World-space cursor carrying, bounded in camera-local space so it cannot sweep through the body. */
+    public void updatePointer() {
+        cursorTarget = null;
+        var mc = Minecraft.getInstance();
+        if (leaving || weight < 0.99 || !(mc.screen instanceof CameraSceneScreen screen) || screen.cursorInDrawer()) return;
+        boolean carrying = !menu.getCarried().isEmpty();
+        int hovered = screen.hoveredAttachment();
+        if (!carrying && hovered < 0) return;
+        Motion.Kind hoverKind = hovered < 0 ? null : screen.kind(hovered);
+        cursorRight = carrying ? carriedRight() : hoverKind != Motion.Kind.LENS && hoverKind != Motion.Kind.FILTER;
+        Vec3 hit = dev.dyslexic.cinematic.client.Picking.cursorOnPlane(carry(cursorRight),forward);
+        if (hit == null) return;
+        Vec3 offset = hit.subtract(work);
+        var point = CameraAssembly.unorient(new CameraAssembly.Point(offset.dot(right),offset.y,offset.dot(forward)));
+        Vec3 target = local(CameraAssembly.freeTarget(point,cursorRight));
+        boolean sameHand = hoverKind != null && cursorRight == (hoverKind != Motion.Kind.LENS && hoverKind != Motion.Kind.FILTER);
+        if (sameHand && (!carrying || menu.getSlot(hovered).mayPlace(menu.getCarried()))) {
+            var approach = switch (hoverKind) {
+                case FILM -> CameraAssembly.FILM_GATE;
+                case FLASH -> new CameraAssembly.Point(.09,.12,.42);
+                default -> CameraAssembly.LENS_SOCKET.add(new CameraAssembly.Point(0,0,-.22));
+            };
+            Vec3 magnet = local(CameraAssembly.freeTarget(approach,cursorRight));
+            target = target.lerp(magnet,InteractionMotion.attraction(target.distanceTo(magnet),.23));
+        }
+        var view = mc.gameRenderer.getMainCamera();
+        cursorTarget = HandReach.fromAnchor(carry(cursorRight),target,
+                HandReach.shoulder(view.getPosition(),direction(view.getYRot()),cursorRight));
+    }
+
+    public Vec3 followTarget(boolean rightHand) {
+        if (cursorTarget != null && cursorRight == rightHand) return cursorTarget;
+        return pickup.showsItem() && carriedRight() == rightHand ? carry(rightHand) : rest(rightHand);
+    }
+
+    public Vec3 actionTarget(CameraAction action) {
+        // Release from the exact authored path only after the part has cleared its socket.
+        double start = motion.kind == Motion.Kind.FILM ? 0.94 : 0.90;
+        return action.hand().lerp(followTarget(motionRight()),Motion.window(motion.progress(),start,1));
     }
 
     /** Full-size camera comes from below the frustum; both grip points share exactly this translation. */

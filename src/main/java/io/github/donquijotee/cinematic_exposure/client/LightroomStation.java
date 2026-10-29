@@ -29,7 +29,9 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
     private double lastFrame;
     private LightroomStatus status;
     private boolean overPanel;
-    private boolean leftWorks, motionFromHand;
+    private boolean motionFromHand, motionRight = true, waitingForExchange;
+    private final HandExchange exchange = new HandExchange();
+    private ItemStack carriedSnapshot = ItemStack.EMPTY;
     private Vec3 motionStart;
     private final HandPickup pickup = new HandPickup();
     private double tappedAt = -10;
@@ -70,12 +72,22 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
         Vec3 relative = hit.subtract(top);
         if (hovered < 0 && Math.abs(relative.dot(right())) <= 0.22 && Math.abs(relative.dot(side())) <= 0.22
                 && menu().getFrameByIndex(menu().getSelectedFrame()) != null) hovered = 7;
-        if (hovered >= 0 && hovered < 11) {
-            // The distant labels are controls, not physical targets at the back of the block.
-            // Gestures stay beside the print, within reach and clear of its image.
-            aim = hovered >= 7 ? top.add(right().scale(hovered == 8 ? -0.27 : 0.27))
-                    .add(side().scale(0.14)) : point(hovered);
-            leftWorks = hovered == 0 || lateral(aim) < -0.07;
+        double lateral = relative.dot(right()), depth = relative.dot(side());
+        // Picking/clicks still use original slots; motion also follows empty space between them.
+        if (Math.abs(lateral) <= 0.72 && Math.abs(depth) <= 0.72) {
+            double x = InteractionMotion.softBound(lateral,-0.43,0.43,0.09);
+            double z = InteractionMotion.softBound(depth,-0.28,0.43,0.10);
+            aim = top.add(right().scale(x)).add(side().scale(z));
+            int magnet = -1;
+            double distance = 0.18;
+            for (int i=0;i<7;i++) if ((menu().getCarried().isEmpty() || menu().getSlot(i).mayPlace(menu().getCarried()))
+                    && hit.distanceTo(point(i)) < distance) {
+                magnet = i; distance = hit.distanceTo(point(i));
+            }
+            if (magnet >= 0) aim = aim.lerp(point(magnet),InteractionMotion.attraction(distance,0.18));
+            // Rear labels are clickable without pulling the sleeve across the entire workbench.
+            if (hovered >= 7 && hit.distanceToSqr(point(hovered)) < 0.105*0.105)
+                aim = top.add(right().scale(lateral < 0 ? -0.27 : 0.27)).add(side().scale(0.14));
         }
     }
     @Override public Vec3 handTarget(Vec3 aim, Vec3 shoulder, boolean carrying, double tap) {
@@ -121,14 +133,30 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
     }
     private void beginMotion(Motion next) {
         motion = next;
-        boolean rightHand = next.kind != Motion.Kind.FILM;
-        motionStart = HandsInvoker.cinematicExposure$position(rightHand);
+        motionRight = next.kind != Motion.Kind.FILM;
         motionFromHand = next.inserting && pickup.holds(next.item);
+        waitingForExchange = motionFromHand && (exchange.active() || exchange.right() != motionRight);
+        if (exchange.active()) exchange.reset(exchange.right());
+        if (waitingForExchange) requestExchange(motionRight);
+        else exchange.reset(motionRight);
+        motionStart = HandsInvoker.cinematicExposure$position(motionRight);
     }
-    private boolean carryingRight() {
-        if (menu() == null || menu().getCarried().isEmpty()) return !leftWorks;
-        for (int i=0; i<6; i++) if (menu().getSlot(i).mayPlace(menu().getCarried())) return lateral(point(i)) >= -0.07;
-        return true;
+    private void requestExchange(boolean rightHand) {
+        // Meet above the near edge of the table, keeping both sleeves short and off the photograph.
+        exchange.begin(rightHand,asPoint(HandsInvoker.cinematicExposure$position(true)),
+                asPoint(HandsInvoker.cinematicExposure$position(false)),asPoint(top.add(side().scale(0.34)).add(0,0.20,0)),asPoint(right()));
+    }
+    private static CameraAssembly.Point asPoint(Vec3 v) { return new CameraAssembly.Point(v.x,v.y,v.z); }
+    private static Vec3 asVector(CameraAssembly.Point p) { return new Vec3(p.x(),p.y(),p.z()); }
+    private Vec3 exchangedItemPoint() {
+        return asVector(exchange.itemPoint(asPoint(HandsInvoker.cinematicExposure$position(true)),
+                asPoint(HandsInvoker.cinematicExposure$position(false))));
+    }
+    private boolean carryingRight() { return exchange.right(); }
+    private Vec3 followTarget(boolean rightHand) {
+        if (aim == null || overPanel) return rest(rightHand).add(0,menu() != null && !menu().getCarried().isEmpty() ? 0.06 : 0,0);
+        double tap = Math.sin(Math.PI*Motion.window(Scene.clock()-tappedAt,0,0.22));
+        return handTarget(aim,Vec3.ZERO,menu() != null && !menu().getCarried().isEmpty(),tap);
     }
     @Override public void beforeFrame() {
         double now=Scene.clock();
@@ -137,19 +165,42 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
             initialized = false;
             observeTransfers();
             motion = null;
-            pickup.reset();
+            pickup.reset(); exchange.reset(true); carriedSnapshot = ItemStack.EMPTY; waitingForExchange = false;
             lastFrame = now;
             return;
         }
-        observeTransfers(); // Observe the real menu before deciding whether a carried item needs retrieval.
-        if(motion!=null) { motion.advance(dt); if(motion.done()) motion=null; }
-        if (menu() != null && Scene.phase == Scene.Phase.ACTIVE) {
+        observeTransfers(); // Observe real state before scheduling any visual pickup or handover.
+        exchange.advance(dt);
+        if (waitingForExchange && !exchange.active()) {
+            waitingForExchange = false;
+            motionStart = HandsInvoker.cinematicExposure$position(motionRight);
+        }
+        if (motion != null && !waitingForExchange) {
+            motion.advance(dt);
+            if (motion.done()) motion = null;
+        }
+        if (menu() != null) {
+            ItemStack carried = menu().getCarried();
+            boolean changed = !ItemStack.isSameItemSameComponents(carriedSnapshot,carried);
+            if (changed && motion == null) {
+                exchange.reset(exchange.right());
+                // Retrieval starts with the hand nearest the item's usual slot; later it may cross sides.
+                if (!carried.isEmpty()) for (int i=0;i<6;i++) if (menu().getSlot(i).mayPlace(carried)) {
+                    exchange.reset(lateral(point(i)) >= 0); break;
+                }
+            }
+            carriedSnapshot = carried.copy();
             boolean rightHand = carryingRight();
             var camera = Minecraft.getInstance().gameRenderer.getMainCamera();
             Vec3 facing = VisualSession.direction(camera.getYRot());
-            pickup.observe(menu().getCarried(), HandsInvoker.cinematicExposure$position(rightHand),
-                    HandReach.pocket(camera.getPosition(), facing, rightHand), rest(rightHand), motion == null);
+            pickup.observe(carried,HandsInvoker.cinematicExposure$position(rightHand),
+                    HandReach.pocket(camera.getPosition(),facing,rightHand),followTarget(rightHand),motion == null);
             pickup.advance(dt);
+            if (motion == null && !printing && !pickup.active() && !exchange.active() && aim != null) {
+                boolean next = InteractionMotion.chooseRight(rightHand,lateral(aim));
+                if (carried.isEmpty()) exchange.reset(next);
+                else if (next != rightHand) requestExchange(next);
+            }
         }
         lastFrame=now;
     }
@@ -162,11 +213,15 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
         return targets;
     }
     private Vec3[] handTargets() {
+        if (exchange.active()) {
+            boolean targetRight = exchange.destinationRight();
+            var targets = exchange.targets(asPoint(targetRight ? followTarget(true) : rest(true)),
+                    asPoint(targetRight ? rest(false) : followTarget(false)));
+            return new Vec3[]{asVector(targets[0]),asVector(targets[1])};
+        }
         if (motion == null && !printing) {
             boolean rightHand = carryingRight();
-            double tap = Math.sin(Math.PI * Motion.window(Scene.clock()-tappedAt,0,0.22));
-            Vec3 target = pickup.active() ? pickup.hand() : aim == null ? rest(rightHand)
-                    : handTarget(aim, Vec3.ZERO, menu() != null && !menu().getCarried().isEmpty(), tap);
+            Vec3 target = pickup.active() ? pickup.hand(followTarget(rightHand)) : followTarget(rightHand);
             return rightHand ? new Vec3[]{target,rest(false)} : new Vec3[]{rest(true),target};
         }
         Vec3 leftEdge = top.add(right().scale(-0.27)).add(side().scale(0.04)).add(0, 0.07, 0);
@@ -183,13 +238,13 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
             return new Vec3[]{rightHand, rest(false).lerp(leftEdge, hold)};
         }
         Vec3 target = point(motion.kind == Motion.Kind.FILM ? 0 : 6).add(0,0.07,0);
-        boolean rightHand = motion.kind != Motion.Kind.FILM;
+        boolean rightHand = motionRight;
         Vec3 hand = transferHand(rightHand, target);
         return rightHand ? new Vec3[]{hand,rest(false)} : new Vec3[]{rest(true),hand};
     }
     private Vec3 transferHand(boolean rightHand, Vec3 socket) {
         double t = motion.progress();
-        Vec3 rest = rest(rightHand);
+        Vec3 rest = followTarget(rightHand);
         if (!motion.inserting) {
             if (t < 0.20) return motionStart.lerp(socket, Motion.window(t,0,0.20));
             return socket.lerp(rest, Motion.window(t,0.30,0.95));
@@ -206,7 +261,7 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
         return socket.lerp(rest, Motion.window(t,0.78,1));
     }
     private boolean showsMotionItem() {
-        if (motion == null || motion.kind == Motion.Kind.PRINT) return false;
+        if (motion == null || motion.kind == Motion.Kind.PRINT || waitingForExchange) return false;
         double t = motion.progress();
         return motion.inserting ? (motionFromHand || t >= 0.21) && t < 0.78 : t >= 0.20;
     }
@@ -222,18 +277,21 @@ public final class LightroomStation extends AddonMenuStation<LightroomMenu> {
     }
     @Override public void renderWorld(PoseStack pose, MultiBufferSource buffers, Vec3 camera, int light) {
         // Follow the host's actual smoothed fist, not the unsmoothed animation target.
-        if (showsMotionItem()) {
-            Vec3 hand = HandsInvoker.cinematicExposure$position(motion.kind != Motion.Kind.FILM);
+        if (waitingForExchange && motion != null) {
+            Vec3 hand = exchangedItemPoint();
+            ItemPlacer.renderOne(pose,buffers,camera,motion.item,hand.add(0,-0.035,0),side,77,0.9f,0,light);
+        } else if (showsMotionItem()) {
+            Vec3 hand = HandsInvoker.cinematicExposure$position(motionRight);
             ItemPlacer.renderOne(pose, buffers, camera, motion.item, hand.add(0,-0.035,0), side, 77, 0.9f, 0, light);
-        } else if (motion == null && !printing && pickup.showsItem() && menu() != null) {
-            Vec3 hand = HandsInvoker.cinematicExposure$position(carryingRight());
+        } else if (motion == null && !printing && pickup.showsItem() && menu() != null && !overPanel) {
+            Vec3 hand = exchangedItemPoint();
             ItemPlacer.renderOne(pose, buffers, camera, menu().getCarried(), hand.add(0,-0.035,0), side, 77, 0.9f, 0, light);
         }
     }
     @Override public void onEnd() {
         motion = null;
         printing = false;
-        pickup.reset();
+        pickup.reset(); exchange.reset(true); waitingForExchange = false; carriedSnapshot = ItemStack.EMPTY;
         super.onEnd();
     }
 

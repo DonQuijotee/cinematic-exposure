@@ -12,7 +12,8 @@
     "SceneScreenAccess",
     "CameraDrawerMixin",
     "LightroomChecksInvoker",
-    "EmiCameraScreenMixin"
+    "EmiCameraScreenMixin",
+    "CameraCarriedItemMixin"
   ],
   "injectors": {
     "defaultRequire": 1

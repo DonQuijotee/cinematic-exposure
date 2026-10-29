@@ -170,6 +170,17 @@ public final class CameraSceneScreen extends AbstractContainerScreen<CameraInHan
         return drawer.over(x,y);
     }
 
+    public boolean cursorInDrawer() {
+        double[] mouse = Picking.mouseGui();
+        return inDrawer(mouse[0],mouse[1]);
+    }
+
+    public boolean usesWorldCursor() {
+        var session = VisualSession.get();
+        return session != null && session.weight() > 0.99 && !cursorInDrawer()
+                && !isQuickCrafting && !minecraft.options.touchscreen().get();
+    }
+
     @Override protected boolean hasClickedOutside(double x, double y, int left, int top, int button) {
         // The transparent scene is an interaction area, not a vanilla "drop outside the window" target.
         return false;
