@@ -1,6 +1,6 @@
 package io.github.donquijotee.cinematic_exposure.mixin;
 
-import io.github.donquijotee.cinematic_exposure.client.VisualSession;
+import io.github.donquijotee.cinematic_exposure.client.MenuObservations;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
@@ -14,11 +14,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MenuSyncMixin {
     @Inject(method = "handleContainerContent", at = @At("RETURN"))
     private void cinematicExposure$contents(ClientboundContainerSetContentPacket packet, CallbackInfo ci) {
-        VisualSession.resynchronize(packet.getContainerId());
+        MenuObservations.synchronize(packet.getContainerId());
     }
 
     @Inject(method = "handleContainerSetSlot", at = @At("RETURN"))
     private void cinematicExposure$slot(ClientboundContainerSetSlotPacket packet, CallbackInfo ci) {
-        VisualSession.observe();
+        MenuObservations.synchronize(packet.getContainerId());
     }
 }

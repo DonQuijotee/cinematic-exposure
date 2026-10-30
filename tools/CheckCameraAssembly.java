@@ -1,5 +1,7 @@
 import io.github.donquijotee.cinematic_exposure.client.CameraAssembly;
 import io.github.donquijotee.cinematic_exposure.client.CameraAssembly.Point;
+import io.github.donquijotee.cinematic_exposure.client.HandSpring;
+import io.github.donquijotee.cinematic_exposure.client.TransferTimeline;
 
 /** Runs only the addon's pure geometry. No Minecraft, renderer, window, client or server is loaded. */
 class CheckCameraAssembly {
@@ -80,15 +82,20 @@ class CheckCameraAssembly {
                         samples++;
                     }
                     for (int fps : new int[]{30,60,144}) for (double speed : new double[]{.25,1,3}) {
-                        Point smoothed = start;
-                        double dt = speed/fps, alpha = 1-Math.exp(-dt*20);
-                        for (double time=dt;time<CameraAssembly.FILM_DURATION+0.3;time+=dt) {
-                            double t = Math.min(1,time/CameraAssembly.FILM_DURATION);
-                            smoothed = smoothed.lerp(path.hand(t,inserting),alpha);
-                            boolean shown = inserting ? (holding || t>=.18) && t<.74 : t>=.43;
+                        var spring = new HandSpring(start);
+                        var timing = new TransferTimeline(CameraAssembly.FILM_DURATION,inserting ? .74 : .43);
+                        double dt = speed/fps;
+                        for (int frame=0;!timing.done() && frame<5000;frame++) {
+                            timing.advance(dt);
+                            double t = timing.progress();
+                            spring.update(path.hand(t,inserting),dt);
+                            Point smoothed = spring.limit(right,.74);
+                            timing.touch(smoothed.subtract(socket).length() < .045);
+                            boolean shown = inserting ? (holding || t>=.18) && !timing.contacted() : timing.contacted();
                             checkHand(CameraAssembly.unorient(smoothed.subtract(work)),shoulder,shown,"work="+work+", smoothed t="+t);
                             samples++;
                         }
+                        require(timing.contacted(),"film hand did not reach contact before visual timeout");
                     }
                 }
             }

@@ -6,11 +6,11 @@ import net.minecraft.world.phys.Vec3;
 
 /** A visual snapshot, never a reference to a mutable menu stack. No gameplay callbacks exist in this timeline. */
 public final class Motion {
-    public enum Kind { FILM, FLASH, LENS, FILTER, PRINT, PHOTO }
+    public enum Kind { FILM, FLASH, LENS, FILTER, PRINT, PHOTO, MATERIAL }
     public final Kind kind;
     public final boolean inserting;
     public final ItemStack item;
-    private double time;
+    private final TransferTimeline timeline;
     public final double duration;
 
     public Motion(Kind kind, boolean inserting, ItemStack item) {
@@ -18,15 +18,22 @@ public final class Motion {
     }
 
     public Motion(Kind kind, boolean inserting, ItemStack item, double duration) {
+        this(kind,inserting,item,duration,-1);
+    }
+
+    public Motion(Kind kind, boolean inserting, ItemStack item, double duration, double contact) {
         this.kind = kind;
         this.inserting = inserting;
         this.item = item.copy();
         this.duration = duration;
+        this.timeline = new TransferTimeline(duration,contact);
     }
 
-    public void advance(double dt) { time += dt; }
-    public boolean done() { return time >= duration; }
-    public double progress() { return Mth.clamp(time / duration, 0, 1); }
+    public void advance(double dt) { timeline.advance(dt); }
+    public void touch(boolean atSocket) { timeline.touch(atSocket); }
+    public boolean contacted() { return timeline.contacted(); }
+    public boolean done() { return timeline.done(); }
+    public double progress() { return timeline.progress(); }
     public static double ease(double t) { t = Mth.clamp(t, 0, 1); return t * t * t * (t * (t * 6 - 15) + 10); }
     public static double window(double t, double a, double b) { return ease((t - a) / (b - a)); }
 

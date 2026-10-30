@@ -22,6 +22,8 @@ public final class CameraAssembly {
         public Point add(Point b) { return new Point(x+b.x,y+b.y,z+b.z); }
         public Point subtract(Point b) { return new Point(x-b.x,y-b.y,z-b.z); }
         public Point scale(double k) { return new Point(x*k,y*k,z*k); }
+        public double dot(Point b) { return x*b.x+y*b.y+z*b.z; }
+        public Point cross(Point b) { return new Point(y*b.z-z*b.y,z*b.x-x*b.z,x*b.y-y*b.x); }
         public Point lerp(Point b, double k) { return add(b.subtract(this).scale(k)); }
         public double length() { return Math.sqrt(x*x+y*y+z*z); }
     }

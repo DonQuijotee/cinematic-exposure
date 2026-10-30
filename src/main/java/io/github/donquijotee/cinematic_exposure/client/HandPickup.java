@@ -24,8 +24,11 @@ public final class HandPickup {
     public boolean active() { return time < DURATION; }
     public boolean showsItem() { return !observed.isEmpty() && time / DURATION >= 0.5; }
     public boolean holds(ItemStack stack) {
-        return showsItem() && !active() && ItemStack.isSameItemSameComponents(observed, stack);
+        // The item is already in the hand during the return stroke. An immediate placement
+        // continues from that pose; it must not retrieve the same item from the pocket again.
+        return showsItem() && ItemStack.isSameItemSameComponents(observed, stack);
     }
+    public void settle(ItemStack stack) { observed = stack.copy(); time = DURATION; }
     public Vec3 hand() {
         return hand(rest);
     }

@@ -41,8 +41,9 @@ public final class LightroomRenderer implements BlockEntityRenderer<LightroomBlo
         Vec3 origin = Vec3.atLowerCornerOf(pos);
         var station = dev.dyslexic.cinematic.client.Scene.station(LightroomStation.class);
         for (int slot = 0; slot < entity.getContainerSize(); slot++) {
-            if (slot == 0 && station != null && station.movingFilm(pos, entity.getItem(slot))) continue;
-            ItemPlacer.renderOne(pose, buffers, origin, entity.getItem(slot),
+            ItemStack actual = entity.getItem(slot);
+            ItemStack displayed = station == null ? actual : station.displayedSlot(pos,slot,actual);
+            ItemPlacer.renderOne(pose, buffers, origin, displayed,
                     LightroomLayout.point(pos, facing, slot), facing, pos.asLong() + slot, 0.72f, 0, light);
         }
         renderPhotograph(entity, pose, buffers, light);

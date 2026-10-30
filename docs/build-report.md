@@ -1,3 +1,17 @@
+# v0.2.11-alpha 构建记录
+
+2026-10-31（Asia/Shanghai）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。分阶段 compileJava 成功；最终通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（8 秒），保留 TLS 校验。Gradle test 为 NO-SOURCE，不将其描述为游戏测试。
+
+`tools/verify-artifact.py` 通过元数据、Java 21 字节码、Mixin 类、语言、许可证和宿主私有接口检查。纯 Java 检查通过：953766 个胶卷路径采样（本版使用实际速度受限 HandSpring 与接触时钟），最小原版闪光灯包络余量约 .007665 格；1752 个递手采样；83400 个转移/确认顺序采样，另检查整组与部分堆叠交接、组件纠正、不可达退出、手位/速度继承和近垂直掌面旋转。
+
+首轮新连续性检查发现急转目标时单帧位移超过约束，已加入动画速度对应的位移/速度上限，再次通过。这些检查仅加载附属的纯 Java 类，不加载 Minecraft 或依赖运行类，不启动游戏。它们无法证明 Mixin 注入、视觉效果或服务器实测兼容。
+
+产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.2.11-alpha.jar`。GitHub Actions 重新构建并运行相同检查，只有成功后才发布同次构建产物为 Pre-release。远程结果见实际 Actions 记录。
+
+未启动客户端/服务器，未做游戏内、多人或画面测试。需玩家验证暗房 Shift 放料/取料、冲印消耗区别、快速连续操作、相机附件跟手与闪烁、GUI 缩放、退出/纠正、光影和替换模型。极端不可达目标会取消视觉交接、恢复真实状态；不改变实际物品结果。
+
+以下保留旧版本记录。
+
 # v0.2.10-alpha 构建记录
 
 2026-10-30（Asia/Shanghai）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。阶段 compileJava 成功；最终通过云代理/CA 助手运行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（8 秒），TLS 校验保持开启。

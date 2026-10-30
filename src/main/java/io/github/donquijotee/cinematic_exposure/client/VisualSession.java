@@ -3,274 +3,154 @@ package io.github.donquijotee.cinematic_exposure.client;
 import dev.dyslexic.cinematic.client.CameraRig;
 import dev.dyslexic.cinematic.client.Scene;
 import io.github.donquijotee.cinematic_exposure.ClientConfig;
-import io.github.mortuusars.exposure.client.gui.screen.LightroomScreen;
-import io.github.mortuusars.exposure.client.gui.screen.camera.CameraAttachmentsScreen;
-import io.github.mortuusars.exposure.world.block.LightroomBlock;
-import io.github.mortuusars.exposure.world.block.entity.Lightroom;
 import io.github.mortuusars.exposure.world.inventory.CameraInHandAttachmentsMenu;
-import io.github.mortuusars.exposure.world.inventory.LightroomMenu;
 import io.github.mortuusars.exposure.world.item.camera.Attachment;
 import io.github.mortuusars.exposure.world.item.camera.CameraItem;
-import io.github.mortuusars.exposure.world.item.StackedPhotographsItem;
 import io.github.mortuusars.exposure.world.item.component.StoredItemStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
-import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.item.ItemStack;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Client-only presentation. The real Exposure menu remains open, and is the only authority.
- * Local prediction is observed just as the original GUI observes it; a correction replaces a stale move.
- * No authoritative inventory, attachment, player-position, recipe or networking writes occur here.
- */
+/** Camera presentation only. Exposure owns every click, stack, attachment and synchronized value. */
 public final class VisualSession {
     private static VisualSession current;
     private static long lastNanos;
     private static Object world;
-    private final AbstractContainerMenu menu;
-    public final boolean camera;
-    private final List<ItemStack> slots = new ArrayList<>();
-    private final ArrayDeque<Motion> pending = new ArrayDeque<>();
+    private final CameraInHandAttachmentsMenu menu;
+    private List<ItemStack> clickBefore;
+    private SlotTransfer transfer;
     public Motion motion;
-    private Motion actionMotion;
     private CameraAction action;
-    private boolean printing;
+    private ItemStack replacement = ItemStack.EMPTY;
     private boolean leaving;
-    private double weight;
-    private double fromWeight;
-    private double transitionTime;
+    private double weight, fromWeight, transitionTime, frameStep;
     private final Vec3 originEye;
-    private final float originYaw;
-    public final Vec3 forward;
-    public final Vec3 right;
+    public final Vec3 forward, right;
     public Vec3 work;
     private final Vec3 desiredEye;
     private final float desiredYaw;
-    private final float desiredPitch;
     public final BlockPos lightPos;
     private ItemStack cameraStack = ItemStack.EMPTY;
-    private Vec3 smoothRight;
-    private Vec3 smoothLeft;
-    private double frameStep;
+    private HandSpring rightHand, leftHand;
     final HandPickup pickup = new HandPickup();
-    private boolean motionFromHand;
+    final ArmContinuity rightArm = new ArmContinuity(), leftArm = new ArmContinuity();
     private Vec3 cursorTarget;
     private boolean cursorRight;
 
-    private VisualSession(AbstractContainerMenu menu, boolean camera) {
+    private VisualSession(CameraInHandAttachmentsMenu menu) {
         Minecraft mc = Minecraft.getInstance();
         this.menu = menu;
-        this.camera = camera;
         originEye = mc.player.getEyePosition();
-        originYaw = mc.player.getYRot();
-        if (camera) {
-            forward = direction(originYaw);
-            right = new Vec3(-forward.z, 0, forward.x);
-            work = mc.screen instanceof CameraSceneScreen screen ? screen.workPoint(originEye, forward, right)
-                    : originEye.add(forward.scale(0.75)).add(0, -0.32, 0);
-            desiredEye = originEye.add(forward.scale(0.045)).add(0, -0.03, 0);
-            desiredYaw = originYaw + framing();
-            desiredPitch = 18;
-            lightPos = BlockPos.containing(originEye);
-        } else {
-            LightroomMenu lightroom = (LightroomMenu) menu;
-            BlockPos pos = lightroom.getBlockEntity().getBlockPos();
-            Direction side = lightroom.getBlockEntity().getBlockState().getValue(LightroomBlock.FACING);
-            forward = Vec3.atLowerCornerOf(side.getOpposite().getNormal());
-            right = new Vec3(-forward.z, 0, forward.x);
-            work = Vec3.atBottomCenterOf(pos).add(0, 1.02, 0).subtract(forward.scale(0.10));
-            desiredEye = work.subtract(forward.scale(0.72)).add(0, 0.56, 0);
-            desiredYaw = yaw(forward) + framing();
-            desiredPitch = 34;
-            lightPos = pos.above();
-        }
-        snapshot();
+        desiredYaw = mc.player.getYRot();
+        forward = direction(desiredYaw);
+        right = new Vec3(-forward.z, 0, forward.x);
+        work = ((CameraSceneScreen) mc.screen).workPoint(originEye,forward,right);
+        desiredEye = originEye.add(forward.scale(0.045)).add(0,-0.03,0);
+        lightPos = BlockPos.containing(originEye);
+        refresh();
     }
 
     public static boolean supports(Screen screen) {
         var player = Minecraft.getInstance().player;
-        if (player == null) return false;
-        return screen instanceof CameraSceneScreen c && ClientConfig.CAMERA.get()
-                && c.getMenu() == player.containerMenu
-                && c.getMenu().getCamera().getStack().getItem() instanceof CameraItem;
+        return player != null && screen instanceof CameraSceneScreen c && ClientConfig.CAMERA.get()
+                && c.getMenu() == player.containerMenu && c.getMenu().getCamera().getStack().getItem() instanceof CameraItem;
     }
-
-    private static float framing() { return 0; }
-
     public static VisualSession get() { return current; }
 
     public static void frame() {
         Minecraft mc = Minecraft.getInstance();
         long now = System.nanoTime();
-        double dt = lastNanos == 0 ? 0 : Math.min(0.1, (now - lastNanos) / 1.0e9);
+        double dt = lastNanos == 0 ? 0 : Math.min(0.1,(now-lastNanos)/1.0e9);
         lastNanos = now;
         if (world != mc.level || mc.player == null || mc.level == null || !mc.player.isAlive()
-                || mc.getCameraEntity() != mc.player
-                || !mc.options.getCameraType().isFirstPerson() || Scene.active()) {
-            current = null;
-            world = mc.level;
-            return;
+                || mc.getCameraEntity() != mc.player || !mc.options.getCameraType().isFirstPerson() || Scene.active()) {
+            current = null; world = mc.level; return;
         }
         if (mc.isPaused()) return;
-        if (mc.screen != null && !(mc.screen instanceof CameraSceneScreen)) {
-            // A normal Exposure/inventory window must never inherit the immersive camera or arm overlay.
-            current = null;
-            return;
-        }
+        if (mc.screen != null && !(mc.screen instanceof CameraSceneScreen)) { current = null; return; }
         boolean supported = supports(mc.screen);
         if (current != null && supported && current.menu != mc.player.containerMenu) current = null;
-        if (current == null && supported) {
-            current = new VisualSession(mc.player.containerMenu, mc.screen instanceof CameraSceneScreen);
-        }
+        if (current == null && supported) current = new VisualSession((CameraInHandAttachmentsMenu) mc.player.containerMenu);
         if (current == null) return;
         VisualSession s = current;
-        if (mc.screen instanceof CameraSceneScreen screen && s.camera) {
-            Vec3 nextWork = screen.workPoint(s.originEye, s.forward, s.right);
-            if (s.work.distanceToSqr(nextWork) > 1e-8) {
-                // Window/GUI scale changes invalidate captured animation anchors, never the real operation.
-                s.motion = null; s.pending.clear(); s.action = null; s.actionMotion = null;
-                s.smoothRight = null; s.smoothLeft = null;
-                s.pickup.reset();
-                s.snapshot();
+        if (mc.screen instanceof CameraSceneScreen screen) {
+            Vec3 next = screen.workPoint(s.originEye,s.forward,s.right);
+            if (s.work.distanceToSqr(next) > 1e-8) {
+                // Invalidate the old socket path, not the hands or their spring velocity.
+                s.cancelTransfer();
+                s.work = next;
             }
-            s.work = nextWork;
         }
-        boolean present = supported && mc.player.containerMenu == s.menu;
-        if (!s.camera) {
-            LightroomMenu lm = (LightroomMenu) s.menu;
-            present &= !lm.getBlockEntity().isRemoved()
-                    && mc.level.getBlockEntity(lm.getBlockEntity().getBlockPos()) == lm.getBlockEntity()
-                    && s.work.distanceTo(mc.player.getEyePosition()) < 5;
-        } else {
-            present &= s.originEye.distanceTo(mc.player.getEyePosition()) < 2;
-        }
+        boolean present = supported && mc.player.containerMenu == s.menu && s.originEye.distanceTo(mc.player.getEyePosition()) < 2;
         if (!present && !s.leaving) {
-            s.leaving = true;
-            s.fromWeight = s.weight;
-            s.transitionTime = 0;
-            s.pending.clear();
-            s.motion = null;
+            s.leaving = true; s.fromWeight = s.weight; s.transitionTime = 0; s.cancelTransfer();
         } else if (present && s.leaving) {
-            s.leaving = false;
-            s.fromWeight = s.weight;
-            s.transitionTime = 0;
-            s.snapshot();
+            s.leaving = false; s.fromWeight = s.weight; s.transitionTime = 0;
         }
         double step = dt * ClientConfig.SPEED.get();
         s.frameStep = step;
         s.transitionTime += step;
-        s.weight = Mth.lerp(Motion.ease(s.transitionTime / 0.65), s.fromWeight, s.leaving ? 0 : 1);
+        s.weight = Mth.lerp(Motion.ease(s.transitionTime/0.65),s.fromWeight,s.leaving ? 0 : 1);
         if (!s.leaving) {
-            s.detect();
-            if (s.motion == null && s.weight > 0.99) {
-                s.motion = s.pending.poll();
-                s.motionFromHand = s.motion != null && s.motion.inserting && s.pickup.holds(s.motion.item);
-            }
+            s.refresh();
             if (s.motion != null) {
                 s.motion.advance(step);
-                if (s.motion.done()) s.motion = null;
+                if (s.motion.done()) s.finishTransfer();
             }
+            boolean right = s.carriedRight();
             Vec3 eye = mc.gameRenderer.getMainCamera().getPosition();
-            boolean transfer = s.motion != null || !s.pending.isEmpty();
-            boolean pickupRight = s.carriedRight();
-            Vec3 previous = pickupRight ? s.smoothRight : s.smoothLeft;
-            s.pickup.observe(s.menu.getCarried(), previous == null ? s.rest(pickupRight) : previous,
-                    HandReach.pocket(eye,s.forward,pickupRight),s.carry(pickupRight),!transfer);
+            s.pickup.observe(s.menu.getCarried(),s.position(right),HandReach.pocket(eye,s.forward,right),s.carry(right),s.motion == null);
             s.pickup.advance(step);
         }
         if (s.leaving && s.weight < 0.001) current = null;
     }
 
-    /** Called after a vanilla click as well as every frame, including server corrections. */
-    public static void observe() {
-        if (current != null && !current.leaving) current.detect();
+    /** Captures a real vanilla click, including QUICK_MOVE, drag and number-key swaps. */
+    public static void beforeClick(int containerId) {
+        if (!observes(containerId)) return;
+        current.refresh();
+        current.clickBefore = java.util.stream.IntStream.range(0,current.attachments().size())
+                .mapToObj(i -> current.menu.getSlot(i).getItem().copy()).toList();
+    }
+    public static void afterClick(int containerId) {
+        VisualSession s = current;
+        if (!observes(containerId) || s.clickBefore == null) return;
+        List<ItemStack> before = s.clickBefore;
+        s.clickBefore = null;
+        for (int i=0;i<before.size();i++) {
+            ItemStack after = s.menu.getSlot(i).getItem();
+            if (ItemStack.matches(before.get(i),after)) continue;
+            // The latest real operation takes over immediately. No backlog of stale cursor gestures.
+            s.startTransfer(i,before.get(i),after);
+        }
+        s.cameraStack = s.menu.getCamera().getStack().copy();
     }
 
+    private static boolean observes(int containerId) {
+        return current != null && !current.leaving && current.menu.containerId == containerId
+                && supports(Minecraft.getInstance().screen) && Minecraft.getInstance().player.containerMenu == current.menu;
+    }
+
+    /** A confirmation is not a new operation. A genuine correction releases only the stale prop. */
+    public static void observe() { if (current != null && !current.leaving) current.refresh(); }
     public static void resynchronize(int containerId) {
-        // Full-content packets initialize a window or correct prediction. Never replay their entire contents.
-        if (current != null && current.menu.containerId == containerId) {
-            current.pending.clear();
-            current.motion = null;
-            current.pickup.reset();
-            if (!current.camera || current.hasCamera()) current.snapshot();
-        }
+        if (current != null && current.menu.containerId == containerId) current.refresh();
     }
-
-    private void snapshot() {
-        slots.clear();
-        int count = camera ? attachments().size() : Lightroom.SLOTS;
-        for (int i = 0; i < count; i++) slots.add(menu.getSlot(i).getItem().copy());
-        if (camera) cameraStack = ((CameraInHandAttachmentsMenu) menu).getCamera().getStack().copy();
-        else {
-            printing = ((LightroomMenu) menu).isPrinting();
-            lastResult = menu.getSlot(Lightroom.RESULT_SLOT).getItem().copy();
-        }
+    private void refresh() {
+        if (!(menu.getCamera().getStack().getItem() instanceof CameraItem)) { cancelTransfer(); return; }
+        cameraStack = menu.getCamera().getStack().copy();
+        if (transfer != null && !transfer.reconcile(menu.getSlot(transfer.slot).getItem())) cancelTransfer();
     }
-
-    private List<Attachment<?>> attachments() {
-        return ((CameraInHandAttachmentsMenu) menu).getCamera().map((item, stack) -> item.getAttachments());
+    private void cancelTransfer() {
+        transfer = null; motion = null; action = null; replacement = ItemStack.EMPTY;
     }
-
-    private boolean hasCamera() {
-        return ((CameraInHandAttachmentsMenu) menu).getCamera().getStack().getItem() instanceof CameraItem;
-    }
-
-    private void detect() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.player.containerMenu != menu || camera && !hasCamera()) return;
-        for (int i = 0; i < slots.size(); i++) {
-            ItemStack before = slots.get(i);
-            ItemStack after = menu.getSlot(i).getItem();
-            // A replacement can share an item ID while storing a different film or attachment.
-            // Selection/printing progress lives in ContainerData, not these stack snapshots.
-            if (camera && !ItemStack.isSameItemSameComponents(before, after)) {
-                Motion.Kind kind = kind(attachments().get(i));
-                transfer(kind, before, after);
-            } else if (!camera && i == Lightroom.FILM_SLOT && !ItemStack.matches(before, after)) {
-                transfer(Motion.Kind.FILM, before, after);
-            } else if (!camera && i == Lightroom.RESULT_SLOT && !before.isEmpty()
-                    && photographs(after) < photographs(before)) {
-                ItemStack taken = before;
-                if (before.getItem() instanceof StackedPhotographsItem photos
-                        && photographs(before) - photographs(after) == 1) {
-                    taken = photos.getPhotographs(before).getItemUnsafe(0).copy();
-                }
-                enqueue(new Motion(Motion.Kind.PHOTO, false, taken));
-            }
-            slots.set(i, after.copy());
-        }
-        if (camera) cameraStack = ((CameraInHandAttachmentsMenu) menu).getCamera().getStack().copy();
-        else {
-            boolean active = ((LightroomMenu) menu).isPrinting();
-            if (!printing && active) enqueue(new Motion(Motion.Kind.PRINT, true, ItemStack.EMPTY));
-            // Creative printing is instantaneous: a new result is the authoritative observable completion.
-            ItemStack result = menu.getSlot(Lightroom.RESULT_SLOT).getItem();
-            if (!active && !printing && !result.isEmpty() && !ItemStack.matches(result, lastResult)) {
-                if (photographs(result) > photographs(lastResult)) {
-                    enqueue(new Motion(Motion.Kind.PRINT, true, ItemStack.EMPTY));
-                }
-            }
-            lastResult = result.copy();
-            printing = active;
-        }
-    }
-    private ItemStack lastResult = ItemStack.EMPTY;
-
-    private static int photographs(ItemStack stack) {
-        if (stack.isEmpty()) return 0;
-        return stack.getItem() instanceof StackedPhotographsItem photos
-                ? photos.getPhotographs(stack).size() : stack.getCount();
-    }
-
+    private List<Attachment<?>> attachments() { return menu.getCamera().map((item,stack) -> item.getAttachments()); }
     private static Motion.Kind kind(Attachment<?> attachment) {
         if (attachment.equals(Attachment.FILM)) return Motion.Kind.FILM;
         if (attachment.equals(Attachment.FLASH)) return Motion.Kind.FLASH;
@@ -278,79 +158,67 @@ public final class VisualSession {
         return Motion.Kind.FILTER;
     }
 
-    private void enqueue(Motion next) {
-        if (pending.size() >= 8) pending.removeFirst();
-        pending.addLast(next);
+    private void startTransfer(int slot, ItemStack before, ItemStack after) {
+        boolean inserting = SlotTransfer.inserting(before,after);
+        ItemStack item = SlotTransfer.moved(before,after,inserting);
+        Motion.Kind kind = kind(attachments().get(slot));
+        boolean right = kind != Motion.Kind.LENS && kind != Motion.Kind.FILTER;
+        boolean holding = pickup.holds(item) || motion != null && action != null && action.showsItem()
+                && motionRight() == right && ItemStack.isSameItemSameComponents(motion.item,item);
+        boolean swap = !before.isEmpty() && !after.isEmpty() && !ItemStack.isSameItemSameComponents(before,after);
+        replacement = swap ? after.copy() : ItemStack.EMPTY;
+        if (swap) { inserting = false; item = before; holding = false; }
+        boolean bag = swap || !inserting && !ItemStack.isSameItemSameComponents(menu.getCarried(),item);
+        begin(slot,before,after,item,kind,inserting,holding,bag);
     }
-
-    private void transfer(Motion.Kind kind, ItemStack before, ItemStack after) {
-        // A newer state supersedes an unfinished transfer, including a server correction.
-        if (motion != null && motion.kind == kind) motion = null;
-        pending.removeIf(old -> old.kind == kind);
-        if (!before.isEmpty()) enqueue(camera && kind == Motion.Kind.FILM
-                ? new Motion(kind,false,before,CameraAssembly.FILM_DURATION) : new Motion(kind, false, before));
-        if (!after.isEmpty()) enqueue(camera && kind == Motion.Kind.FILM
-                ? new Motion(kind,true,after,CameraAssembly.FILM_DURATION) : new Motion(kind, true, after));
+    private void begin(int slot, ItemStack before, ItemStack after, ItemStack item, Motion.Kind kind,
+                       boolean inserting, boolean holding, boolean bag) {
+        boolean film = kind == Motion.Kind.FILM;
+        double contact = inserting ? (film ? .74 : .80) : (film ? .43 : .18);
+        motion = new Motion(kind,inserting,item,film ? CameraAssembly.FILM_DURATION : kind == Motion.Kind.LENS ? 1.15 : .95,contact);
+        transfer = new SlotTransfer(slot,before,after,motion,bag);
+        boolean right = motionRight();
+        Vec3 pocket = HandReach.pocket(Minecraft.getInstance().gameRenderer.getMainCamera().getPosition(),forward,right);
+        Vec3 outward = switch (kind) {
+            case FILM -> assemblyOffset(new CameraAssembly.Point(0,1,0),forward,this.right);
+            case FLASH -> assemblyOffset(new CameraAssembly.Point(1,0,0),forward,this.right);
+            default -> assemblyOffset(new CameraAssembly.Point(0,0,-1),forward,this.right);
+        };
+        action = new CameraAction(motion,position(right),inserting ? rest(right) : bag ? pocket : carry(right),pocket,
+                socket(kind),outward,holding,local(CameraAssembly.FILM_OUTSIDE),local(CameraAssembly.FILM_GATE),bag);
+    }
+    private void finishTransfer() {
+        if (!replacement.isEmpty() && motion.contacted() && transfer.reconcile(menu.getSlot(transfer.slot).getItem())) {
+            ItemStack next = replacement;
+            replacement = ItemStack.EMPTY;
+            begin(transfer.slot,ItemStack.EMPTY,next,next,motion.kind,true,false,false);
+            return;
+        }
+        // A removed attachment is already held. Never make it do another inventory pickup.
+        if (!motion.inserting || ItemStack.isSameItemSameComponents(menu.getCarried(),motion.item)) pickup.settle(menu.getCarried());
+        else pickup.reset();
+        cancelTransfer();
     }
 
     public ItemStack cameraStack() {
         ItemStack display = cameraStack.copy();
         if (motion == null) return display;
-        Attachment<?> attachment = attachment(motion.kind);
-        if (attachment != null) {
-            // This detached display copy is never returned to any menu or network code.
-            // Hide the installed part until seating; retain a removed part until the hand reaches it.
-            if (motion.inserting) {
-                if (motion.progress() < (motion.kind == Motion.Kind.FILM ? 0.74 : 0.80)) display.remove(attachment.component());
-            } else if (motion.progress() < (motion.kind == Motion.Kind.FILM ? 0.43 : 0.18)) {
-                display.set(attachment.component(), new StoredItemStack(motion.item.copy()));
-            } else display.remove(attachment.component());
-        }
+        Attachment<?> attachment = attachments().get(transfer.slot);
+        // Both renders use the same contact decision, made from this frame's actual smoothed fist.
+        if (motion.inserting) {
+            if (!motion.contacted()) display.remove(attachment.component());
+        } else if (!motion.contacted()) display.set(attachment.component(),new StoredItemStack(motion.item.copy()));
+        else display.remove(attachment.component());
         return display;
     }
+    public CameraAction action() { return action; }
+    public void contact(Vec3 hand) { if (motion != null) motion.touch(hand.distanceToSqr(socket(motion.kind)) < .045*.045); }
 
-    private static Attachment<?> attachment(Motion.Kind kind) {
-        return switch (kind) {
-            case FILM -> Attachment.FILM;
-            case FLASH -> Attachment.FLASH;
-            case LENS -> Attachment.LENS;
-            case FILTER -> Attachment.FILTER;
-            default -> null;
-        };
-    }
-
-    public ItemStack film() {
-        if (camera) return ItemStack.EMPTY;
-        if (motion != null && motion.kind == Motion.Kind.FILM && !motion.inserting && motion.progress() < 0.18) {
-            return motion.item.copy();
-        }
-        return menu.getSlot(Lightroom.FILM_SLOT).getItem().copy();
-    }
-    public ItemStack photo() { return camera ? ItemStack.EMPTY : menu.getSlot(Lightroom.RESULT_SLOT).getItem().copy(); }
-    public CameraAction action() {
-        if (motion == null) { action = null; actionMotion = null; return null; }
-        if (actionMotion != motion) {
-            Vec3 outward = switch (motion.kind) {
-                case FILM -> assemblyOffset(new CameraAssembly.Point(0,1,0),forward,right);
-                case FLASH -> assemblyOffset(new CameraAssembly.Point(1,0,0),forward,right);
-                default -> assemblyOffset(new CameraAssembly.Point(0,0,-1),forward,right);
-            };
-            boolean rightHand = motionRight();
-            Vec3 previous = rightHand ? smoothRight : smoothLeft;
-            action = new CameraAction(motion,previous == null ? rest(rightHand) : previous,
-                    motion.inserting ? rest(rightHand) : carry(rightHand),
-                    HandReach.pocket(Minecraft.getInstance().gameRenderer.getMainCamera().getPosition(),forward,rightHand),
-                    socket(motion.kind),outward,motionFromHand,local(CameraAssembly.FILM_OUTSIDE),local(CameraAssembly.FILM_GATE));
-            actionMotion = motion;
-        }
-        return action;
-    }
-
-    /** World-space cursor carrying, bounded in camera-local space so it cannot sweep through the body. */
+    /** World cursor carrying, bounded in camera-local space so it cannot sweep through the body. */
     public void updatePointer() {
         cursorTarget = null;
         var mc = Minecraft.getInstance();
-        if (leaving || weight < 0.99 || !(mc.screen instanceof CameraSceneScreen screen) || screen.cursorInDrawer()) return;
+        if (leaving || weight < .99 || !(mc.screen instanceof CameraSceneScreen screen) || screen.cursorInDrawer()) return;
         boolean carrying = !menu.getCarried().isEmpty();
         int hovered = screen.hoveredAttachment();
         if (!carrying && hovered < 0) return;
@@ -372,109 +240,70 @@ public final class VisualSession {
             target = target.lerp(magnet,InteractionMotion.attraction(target.distanceTo(magnet),.23));
         }
         var view = mc.gameRenderer.getMainCamera();
-        cursorTarget = HandReach.fromAnchor(carry(cursorRight),target,
-                HandReach.shoulder(view.getPosition(),direction(view.getYRot()),cursorRight));
+        cursorTarget = HandReach.fromAnchor(carry(cursorRight),target,HandReach.shoulder(view.getPosition(),direction(view.getYRot()),cursorRight));
     }
-
-    public Vec3 followTarget(boolean rightHand) {
-        if (cursorTarget != null && cursorRight == rightHand) return cursorTarget;
-        return pickup.showsItem() && carriedRight() == rightHand ? carry(rightHand) : rest(rightHand);
+    public Vec3 followTarget(boolean right) {
+        if (cursorTarget != null && cursorRight == right) return cursorTarget;
+        return pickup.showsItem() && carriedRight() == right ? carry(right) : rest(right);
     }
-
     public Vec3 actionTarget(CameraAction action) {
-        // Release from the exact authored path only after the part has cleared its socket.
-        double start = motion.kind == Motion.Kind.FILM ? 0.94 : 0.90;
+        // Bagged items disappear below view before the empty hand returns to the live cursor.
+        double start = motion.kind == Motion.Kind.FILM ? .94 : .90;
         return action.hand().lerp(followTarget(motionRight()),Motion.window(motion.progress(),start,1));
     }
-
-    /** Full-size camera comes from below the frustum; both grip points share exactly this translation. */
-    public Vec3 entranceOffset() {
-        return new Vec3(0, -1.25 * (1-weight), 0).add(forward.scale(-0.14*(1-weight)));
-    }
-
-    public Vec3 smooth(boolean rightHand, Vec3 target) {
+    public Vec3 entranceOffset() { return new Vec3(0,-1.25*(1-weight),0).add(forward.scale(-.14*(1-weight))); }
+    private Vec3 position(boolean right) { return rightHand != null ? vector((right ? rightHand : leftHand).position()) : rest(right); }
+    public Vec3 smooth(boolean right, Vec3 target) {
+        if (rightHand == null) {
+            leftHand = new HandSpring(point(rest(false))); rightHand = new HandSpring(point(rest(true)));
+        }
         var view = Minecraft.getInstance().gameRenderer.getMainCamera();
-        Vec3 shoulder = HandReach.shoulder(view.getPosition(), direction(view.getYRot()), rightHand);
-        target = HandReach.limit(target, shoulder);
-        Vec3 previous = rightHand ? smoothRight : smoothLeft;
-        Vec3 next = previous == null ? target : previous.lerp(target, 1 - Math.exp(-frameStep * 20));
-        next = HandReach.limit(next, shoulder);
-        if (rightHand) smoothRight = next; else smoothLeft = next;
-        return next;
+        Vec3 shoulder = HandReach.shoulder(view.getPosition(),direction(view.getYRot()),right);
+        HandSpring hand = right ? rightHand : leftHand;
+        hand.update(point(HandReach.limit(target,shoulder)),frameStep);
+        // Retain the spring state across input, confirmation, contact, exit and GUI resize.
+        return vector(hand.limit(point(shoulder),HandReach.MAX));
     }
+    private static CameraAssembly.Point point(Vec3 v) { return new CameraAssembly.Point(v.x,v.y,v.z); }
+    private static Vec3 vector(CameraAssembly.Point p) { return new Vec3(p.x(),p.y(),p.z()); }
+    public double frameStep() { return frameStep; }
     public double weight() { return weight; }
-    public Vec3 local(double x, double y, double z) {
-        if (camera) return work.add(assemblyOffset(new CameraAssembly.Point(x,y,z),forward,right));
-        return work.add(right.scale(x)).add(0, y, 0).add(forward.scale(z));
-    }
+    public Vec3 local(double x, double y, double z) { return work.add(assemblyOffset(new CameraAssembly.Point(x,y,z),forward,right)); }
     public Vec3 local(CameraAssembly.Point point) { return local(point.x(),point.y(),point.z()); }
     public static Vec3 assemblyOffset(CameraAssembly.Point point, Vec3 forward, Vec3 right) {
         var tilted = CameraAssembly.orient(point);
         return right.scale(tilted.x()).add(0,tilted.y(),0).add(forward.scale(tilted.z()));
     }
-    public Vec3 rest(boolean rightHand) {
-        return camera ? local(rightHand ? CameraAssembly.RIGHT_REST : CameraAssembly.LEFT_GRIP)
-                : local(rightHand ? 0.28 : -0.28, 0.035, -0.20);
-    }
-    public Vec3 carry(boolean rightHand) {
-        return local(rightHand ? CameraAssembly.RIGHT_CARRY : CameraAssembly.LEFT_CARRY);
-    }
+    public Vec3 rest(boolean right) { return local(right ? CameraAssembly.RIGHT_REST : CameraAssembly.LEFT_GRIP); }
+    public Vec3 carry(boolean right) { return local(right ? CameraAssembly.RIGHT_CARRY : CameraAssembly.LEFT_CARRY); }
     public Vec3 socket(Motion.Kind kind) {
-        if (camera) return switch (kind) {
-            case FILM -> local(CameraAssembly.FILM_SOCKET);
-            case FLASH -> local(CameraAssembly.FLASH_SOCKET);
-            case LENS, FILTER -> local(CameraAssembly.LENS_SOCKET);
-            default -> work;
-        };
-        return switch (kind) {
-            case FILM -> local(-0.16, 0.055, 0.08);
-            case PRINT -> local(0.16, 0.03, 0.10);
-            case PHOTO -> local(0.26, 0.04, -0.08);
-            default -> work;
-        };
+        return local(switch (kind) {
+            case FILM -> CameraAssembly.FILM_SOCKET;
+            case FLASH -> CameraAssembly.FLASH_SOCKET;
+            default -> CameraAssembly.LENS_SOCKET;
+        });
     }
-
-    public boolean motionRight() {
-        return motion == null || motion.kind != Motion.Kind.LENS && motion.kind != Motion.Kind.FILTER;
-    }
-
+    public boolean motionRight() { return motion == null || motion.kind != Motion.Kind.LENS && motion.kind != Motion.Kind.FILTER; }
     public boolean carriedRight() {
         ItemStack carried = menu.getCarried();
         return !Attachment.LENS.matches(carried) && !Attachment.FILTER.matches(carried);
     }
-
-    /** Clamp movement to the live eye and raycast it, so this visual adapter cannot see through walls. */
     public static CameraRig.Pose camera(Vec3 live, float yaw, float pitch) {
         VisualSession s = current;
         Minecraft mc = Minecraft.getInstance();
-        if (s == null || Scene.active() || mc.level == null || mc.player == null
-                || !mc.options.getCameraType().isFirstPerson()) return null;
-        Vec3 target = s.desiredEye;
-        Vec3 delta = target.subtract(live);
-        if (delta.length() > 0.35) target = live.add(delta.normalize().scale(0.35));
-        var hit = mc.level.clip(new ClipContext(live, target, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
+        if (s == null || Scene.active() || mc.level == null || mc.player == null || !mc.options.getCameraType().isFirstPerson()) return null;
+        Vec3 target = s.desiredEye, delta = target.subtract(live);
+        if (delta.length() > .35) target = live.add(delta.normalize().scale(.35));
+        var hit = mc.level.clip(new ClipContext(live,target,ClipContext.Block.COLLIDER,ClipContext.Fluid.NONE,mc.player));
         if (hit.getType() != HitResult.Type.MISS) {
             Vec3 travel = hit.getLocation().subtract(live);
-            target = travel.length() > 0.06 ? live.add(travel.normalize().scale(travel.length() - 0.06)) : live;
+            target = travel.length() > .06 ? live.add(travel.normalize().scale(travel.length()-.06)) : live;
         }
-        float k = (float) s.weight;
-        float targetYaw = s.desiredYaw;
-        float targetPitch = s.desiredPitch;
-        if (!s.camera) {
-            // Tethering can leave the camera beside the nominal front pose. Keep aiming at the real
-            // work area from the reachable position, rather than looking parallel to the table.
-            Vec3 aim = s.work.subtract(target);
-            targetYaw = yaw(aim) + framing();
-            targetPitch = (float) Math.toDegrees(Math.atan2(-aim.y, Math.hypot(aim.x, aim.z)));
-        }
-        return new CameraRig.Pose(live.lerp(target, k),
-                yaw + Mth.wrapDegrees(targetYaw - yaw) * k,
-                Mth.lerp(k, pitch, targetPitch), 0);
+        float k = (float)s.weight;
+        return new CameraRig.Pose(live.lerp(target,k),yaw+Mth.wrapDegrees(s.desiredYaw-yaw)*k,Mth.lerp(k,pitch,18),0);
     }
-
     public static Vec3 direction(float yaw) {
         double radians = Math.toRadians(yaw);
-        return new Vec3(-Math.sin(radians), 0, Math.cos(radians));
+        return new Vec3(-Math.sin(radians),0,Math.cos(radians));
     }
-    private static float yaw(Vec3 direction) { return (float) Math.toDegrees(Math.atan2(-direction.x, direction.z)); }
 }

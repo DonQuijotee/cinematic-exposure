@@ -48,11 +48,12 @@ public final class SceneDrawing {
         Vec3 entrance = session.entranceOffset();
         leftHand = HandReach.limit(session.smooth(false,leftHand).add(entrance),leftShoulder);
         rightHand = HandReach.limit(session.smooth(true,rightHand).add(entrance),rightShoulder);
+        if (motion != null) session.contact(session.motionRight() ? rightHand : leftHand);
         if (weight > 0.01) {
-            HandsInvoker.cinematicExposure$drawArm(pose, buffers, eye, leftHand, leftShoulder, false, light, session.forward);
+            arm(pose,buffers,eye,leftHand,leftShoulder,false,light,session);
             // Turning the entire arm about the socket also rotated the shoulder off the body.
             // Keep the arm anchored; only the held attachment turns during fastening.
-            HandsInvoker.cinematicExposure$drawArm(pose, buffers, eye, rightHand, rightShoulder, true, light, session.forward);
+            arm(pose,buffers,eye,rightHand,rightShoulder,true,light,session);
         }
         if (weight > 0.001) {
             item(pose, buffers, eye, session.cameraStack(), session.work.add(entrance), session.forward,
@@ -70,6 +71,28 @@ public final class SceneDrawing {
                     0.22f,CameraAssembly.TILT,0,light);
         }
         buffers.endBatch();
+    }
+
+    private static void arm(PoseStack pose, MultiBufferSource buffers, Vec3 eye, Vec3 hand,
+                            Vec3 shoulder, boolean right, int light, VisualSession session) {
+        Vec3 d = hand.subtract(shoulder).normalize();
+        Vec3 base = new Vec3(0,1,0).subtract(d.scale(d.y));
+        if (base.lengthSqr() < 1e-6) base = session.forward;
+        base = base.normalize();
+        var continuity = right ? session.rightArm : session.leftArm;
+        var up = continuity.update(new CameraAssembly.Point(d.x,d.y,d.z),
+                new CameraAssembly.Point(session.forward.x,session.forward.y,session.forward.z),session.frameStep());
+        Vec3 stable = new Vec3(up.x(),up.y(),up.z());
+        float roll = (float)Math.atan2(d.dot(base.cross(stable)),base.dot(stable));
+        // Rotate about the shoulder-to-fist axis, leaving both endpoints exactly in place.
+        // All mesh, sleeve and skin rendering still belongs to Cinematic's original renderer.
+        pose.pushPose();
+        Vec3 pivot = hand.subtract(eye);
+        pose.translate(pivot.x,pivot.y,pivot.z);
+        pose.mulPose(new org.joml.Quaternionf().rotationAxis(roll,(float)d.x,(float)d.y,(float)d.z));
+        pose.translate(-pivot.x,-pivot.y,-pivot.z);
+        HandsInvoker.cinematicExposure$drawArm(pose,buffers,eye,hand,shoulder,right,light,session.forward);
+        pose.popPose();
     }
 
     private static void item(PoseStack pose, MultiBufferSource buffers, Vec3 eye, ItemStack stack,

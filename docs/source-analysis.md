@@ -1,3 +1,42 @@
+# v0.2.11 直接输入、接触交接与连续手势
+
+源码基线仍为 Cinematic 0.18.12 / Exposure 1.9.19；没有按最新 main 猜测运行版接口。
+
+## 对照原工作站的设计
+
+| 原实现 | 本次采用的思路 |
+| --- | --- |
+| TableStation / Hands / Picking | 连续工作区、左右手缓冲、独立物品搬运；Shift 布局具有自己的 lay 阶段，不能只观察 carried |
+| Smithing / Anvil / Grindstone / Stonecutter | 工作手与支撑手分工、接触节拍、动作从真实手位衔接 |
+| Cartography / Loom | 在中央材料边缘扶持/操作，保留内容可见 |
+| Shelf / Lectern / Jukebox | 物品在静置模型与手持模型之间明确交接，操作围绕握点进行 |
+| Furnace（三种）/ Brewing / Crafter / Campfire | 目标服从方块结构、实时库存；Campfire 还限制伸手距离 |
+| Enchant / Beacon | 双手阶段与状态配合，但其仪式/效果不照搬到暗房 |
+
+宿主并非每个普通或 Shift 点击都有完整动画。MenuStation 的部分加工动作把真实点击延后到 beat；本附属不采用延后 Exposure 操作的方式，只让视觉交接等待实际手位。
+
+## 暗房材料修复
+
+旧 LightroomStation 只观察胶卷、成品与 printing，漏掉纸张及四种颜料；旧 HandPickup 又依赖 carried，所以 Shift 整组进入工作台不会经过掏取。进一步确认 `SceneScreen.panelClick -> ClientStation.quickMove` 在两端安装模式发送宿主 `StationActionPayload.QUICK`，并不经过普通客户端菜单预测。
+
+现在 LightroomStation 覆盖公开 quickMove，核对玩家库存槽映射后，只调用一次原 MenuStation.slotClick(QUICK_MOVE)，不调用 super、不另发宿主 QUICK。仍使用 Exposure 原 LightroomMenu.quickMoveStack / moveItemStackTo 与标准容器包，保留所有槽位限制和服务端验证。两个场景共用原 handleInventoryMouseClick 的 HEAD/RETURN 只读观察边界，捕获操作前后的快照；没有取消或补发原操作。
+
+SlotTransfer 记录实际数量差与原组件，只保存独立显示副本。TransferDisplay 在接触前显示 before，在接触后显示 actual；原 BEFORE/AFTER 同步确认不重启动作，实际纠正取消旧交接。插入堆叠时旧部分仍留在桌上，手搬的是新增部分。输出照片数量读取组件，单张取出用原照片条目。只在直接点击边界生成搬运，服务端自动冲印消耗、初始同步和旁观者更新不会伪装成拿取。
+
+原 BER 仍负责全部静置槽位与世界照片。仅活动方块的当前动作槽位使用临时交接覆盖，关闭/纠正/超时即恢复实际 BE；不会在场景外依赖快照，不生成掉落实体。renderWorld 在宿主 Hands.update 后检查实际拳头，再用同一接触状态渲染道具；后续 BER 使用同一状态。两处物品大小、seed、朝向一致。
+
+## 相机连续性
+
+去掉全局待播队列及未使用的旧 Lightroom VisualSession 分支。每个真实点击立即从当前手位开始新动作；连续输入取最新状态。一次同槽替换仍先卸旧件、再安装新件，后续输入可以中断，不延迟游戏操作。HandPickup.holds 不再要求整个回程结束，物品已出现于手中即可继续安装。
+
+完整内容包/单槽包只做 reconcile：相同附件、组件与数量保留动作；实际不同才取消过时展示。HandSpring 的位置与速度贯穿跟随、取物、装卸、缩放及退出，不因新动作或确认包重建；对跨区新目标增加速度上限。接口接触由 TransferTimeline 等待真实平滑手位完成，机身组件和手中附件同帧交接。不可达时最多等待 0.45 个动画秒，再恢复真实数据；无网络动作回调。
+
+Hands.drawArm 把 world-up 投到手臂垂直平面，在近垂直位置有退化/符号翻转风险。本版 ArmContinuity 保持连续掌面基准，对原 drawArm 加一个绕肩膀—拳头轴的视觉旋转；仍复用原皮肤、手臂、袖子，无模型或全局宿主 Mixin 改写。这是针对可能的旋转突变，不代表已在游戏中证明用户所见闪烁只有此原因。
+
+新增纯 Java 事件顺序/接触/旋转检查，并将既有胶卷几何检查改为调用实际 HandSpring/TransferTimeline。首轮检查发现急转目标时单帧位移过大，加入速度约束后通过。测试运行类路径只有附属 JAR；没有游戏类、客户端、服务器或截图验证。
+
+以下为历史版本记录。
+
 # v0.2.10 光标交互与相机顶部装卷
 
 - 重新核对 Cinematic 0.18.12 的 TableStation.updateCursor / handTarget / handsOverride、Picking 和 Hands.follow。合成台将光标射线投到台面，连续 aim 与 hoverCell 独立，目标限制在块内 .07..93；普通手位使用 Spring3，工作手切换有滞回阈值。ClientStation.maxReach 默认无限，特殊 handsOverride 分支也不会经过普通距离限制，故附属仍自行限制双手 .74 格。

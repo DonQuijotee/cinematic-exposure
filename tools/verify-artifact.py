@@ -8,13 +8,13 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 jar = Path(sys.argv[1]) if len(sys.argv) > 1 else (
-    root / 'build/libs/cinematic-exposure-1.21.1-neoforge-0.2.10-alpha.jar'
+    root / 'build/libs/cinematic-exposure-1.21.1-neoforge-0.2.11-alpha.jar'
 )
 with zipfile.ZipFile(jar) as archive:
     names = set(archive.namelist())
     metadata = tomllib.loads(archive.read('META-INF/neoforge.mods.toml').decode())
     assert metadata['mods'][0]['modId'] == 'cinematic_exposure'
-    assert metadata['mods'][0]['version'] == '0.2.10-alpha'
+    assert metadata['mods'][0]['version'] == '0.2.11-alpha'
     dependencies = {dep['modId'] for dep in metadata['dependencies']['cinematic_exposure']}
     assert dependencies == {'minecraft', 'neoforge', 'exposure', 'cinematic'}
     config = json.loads(archive.read('cinematic_exposure.mixins.json'))
@@ -72,3 +72,6 @@ subprocess.run([java, '-Xmx256m', '--class-path', str(jar),
 
 subprocess.run([java, '-Xmx256m', '--class-path', str(jar),
                 str(root / 'tools/CheckInteractions.java')], check=True)
+
+subprocess.run([java, '-Xmx256m', '--class-path', str(jar),
+                str(root / 'tools/CheckTransfers.java')], check=True)

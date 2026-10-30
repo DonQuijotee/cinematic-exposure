@@ -7,16 +7,18 @@ public final class CameraAction {
     private final Motion motion;
     private final Vec3 start, rest, carry, socket, outside;
     private final boolean alreadyHolding;
+    private final boolean toInventory;
     private final CameraAssembly.FilmPath filmPath;
 
     public CameraAction(Motion motion, Vec3 start, Vec3 rest, Vec3 carry, Vec3 socket, Vec3 outward,
-                        boolean alreadyHolding, Vec3 filmOutside, Vec3 filmGate) {
+                        boolean alreadyHolding, Vec3 filmOutside, Vec3 filmGate, boolean toInventory) {
         this.motion = motion;
         this.start = start;
         this.rest = rest;
         this.carry = carry;
         this.socket = socket;
         this.alreadyHolding = alreadyHolding;
+        this.toInventory = toInventory;
         this.outside = socket.add(outward.scale(motion.kind == Motion.Kind.FILTER ? 0.12 : 0.22));
         filmPath = motion.kind == Motion.Kind.FILM ? new CameraAssembly.FilmPath(point(start),point(rest),
                 point(carry),point(socket),point(filmOutside),point(filmGate),alreadyHolding) : null;
@@ -25,6 +27,7 @@ public final class CameraAction {
     public Vec3 hand() {
         double t = motion.progress();
         if (filmPath != null) {
+            if (!motion.inserting && toInventory && t >= .82) return move(vector(filmPath.gate()),rest,t,.82,.92);
             var p = filmPath.hand(t,motion.inserting);
             return new Vec3(p.x(),p.y(),p.z());
         }
@@ -42,24 +45,25 @@ public final class CameraAction {
         if (t < 0.18) return move(start, socket, t, 0, 0.18);
         if (t < 0.38) return socket; // grip and unscrew before any axial translation
         if (t < 0.62) return move(socket, outside, t, 0.38, 0.62);
-        return move(outside, rest, t, 0.62, 1);
+        return move(outside, rest, t, 0.62, toInventory ? .90 : 1);
     }
 
     public boolean showsItem() {
         double t = motion.progress();
-        return motion.inserting ? (alreadyHolding || t >= (filmPath != null ? 0.18 : 0.21))
-                && t < (filmPath != null ? 0.74 : 0.80)
-                : t >= (filmPath != null ? 0.43 : 0.18);
+        return motion.inserting ? (alreadyHolding || t >= (filmPath != null ? 0.18 : 0.21)) && !motion.contacted()
+                : motion.contacted() && (!toInventory || t < .94);
     }
 
     public float twist() {
         if (motion.kind != Motion.Kind.LENS && motion.kind != Motion.Kind.FILTER) return 0;
         double t = motion.progress();
-        return (float)(motion.inserting ? 90 * Motion.window(t, 0.58, 0.80) : -90 * Motion.window(t, 0.18, 0.38));
+        return (float)(motion.inserting ? 90 * Motion.window(t, 0.58, 0.80)
+                : -90 * Motion.window(t, 0.18, 0.38) * (1-Motion.window(t,.68,.94)));
     }
 
     private static Vec3 move(Vec3 a, Vec3 b, double t, double from, double to) {
         return a.lerp(b, Motion.window(t, from, to));
     }
     private static CameraAssembly.Point point(Vec3 v) { return new CameraAssembly.Point(v.x,v.y,v.z); }
+    private static Vec3 vector(CameraAssembly.Point p) { return new Vec3(p.x(),p.y(),p.z()); }
 }
