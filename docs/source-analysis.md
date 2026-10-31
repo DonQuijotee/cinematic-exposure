@@ -1,3 +1,18 @@
+# v0.2.12 暗房改用合成台式取放
+
+继续核对 Cinematic 0.18.12 的 TableStation、Hands、SceneScreen、ClientStation、MenuStation 和 Exposure 1.9.19 的 LightroomMenu。以用户新的交互要求替代早先的口袋取物、长取出及显式递手设计，仅调整暗房。
+
+- **实际宿主差异**：TableStation 普通取物走 CLICK/原菜单，配合 Hands.tap，未创建取出时间线；普通左键持物还支持松手/拖拽分配，不能概括成每个点击都有 lay 动作。Shift/配方布置使用 `LAY_MOVE=.36`、`LAY_DROP=.64`，整把材料只搬一次；laying 时 click/quickMove 拒绝后续布置。`take = rest + side*.14 + up*.03` 位于台边，不是相机下方口袋。
+- **暗房取物**：afterClick 仅为 0–5 槽的真实插入变化建立放置动作。取出与成品槽不创建 Motion；保留原 clicked/quickMoveStack 结果。空闲 `handsOverride()` 返回 null，直接使用宿主 Hands.follow、其左右手滞回阈值、手持物渲染与 SceneScreen 光标图标。冲印期间如果手上有物品也交还宿主持物显示，防止取出后物品暂时不可见。
+- **暗房放置**：新的纯数学 TablePlacement 根据 TableStation 的边缘取料/上方搬运/落手/抬手阶段适配，名义时长 .36 秒、落手阶段 .64。保留真实拳头的接触确认，实际时长可略增加。普通手持放置从当前手位开始；Shift 从相应台边出发。握点前移 .075 格，手高与原 TableStation 一致；可达约束仍由附属保留。使用既有 HandsInvoker 添加只读 leftWorks 访问，继承当前工作手；按钮轻点直接复用 Hands.tap。未改相机渲染或手部平滑控制器。
+- **操作限制**：覆盖 MenuStation.moving/busy，阻止台面槽位、冲印/换帧/工艺按钮及 Shift 入口。SceneScreen 的普通库存点击和数字/丢弃键不统一检查 station.busy，因此在已有 InventoryClickMixin 的 HEAD 加入范围严格限定的 Lightroom 检查：只在活动 SceneScreen、当前匹配容器且正在放置时，拒绝尚未发生预测/发包的新点击。没有操作队列，不延迟或补发已接受请求；Escape、场景退出及原同步包不受限制。
+- **预览时机**：原 LightroomMenu 的槽位预测在手落下前已更新 frames，旧 BER 直接读取它，所以新预览过早出现。LightroomRenderer 现在在读取 film frame 前查询当前方块的放置状态，胶卷静置物、预览与点击区域共用接触判定；抬手期间预览可见，但仍要到动作结束才解锁输入。该门控只针对活动方块的新胶卷，放纸/颜料不遮挡既有预览，已有真实成品仍可显示；退出、纠正或超时后正常读取 BE。
+- **边界保持**：普通库存右键 Exposure 界面不受限制，相机沉浸界面的逻辑保持；原照片系统、消耗、菜单类、Slot、协议及服务器校验未重写。持久 BE 渲染不依赖当前场景。没有添加 HUD 光照条。
+
+纯 Java 新检查覆盖 432 组放置 / 26728 帧采样，包括四个朝向、6 个输入槽、30/60/144 FPS 与 .25/1/3 倍速。核对实际依赖 JAR 中 Hands.leftWorks、tap、position、drawArm 等签名；只解析字节码，不启动游戏。实际观感、Mixin 运行、鼠标输入及多人行为仍由玩家验证。
+
+以下为历史版本记录。
+
 # v0.2.11 直接输入、接触交接与连续手势
 
 源码基线仍为 Cinematic 0.18.12 / Exposure 1.9.19；没有按最新 main 猜测运行版接口。

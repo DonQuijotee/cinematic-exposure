@@ -1,3 +1,15 @@
+# v0.2.12-alpha 构建记录
+
+2026-11-01（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。阶段 compileJava 成功（7 秒）；通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（8 秒），TLS 校验保持开启。Gradle test 为 NO-SOURCE。
+
+`tools/verify-artifact.py` 的打包、元数据、Java 21 字节码、语言、许可证、宿主接口检查通过。新增实际 Hands.leftWorks / tap 的静态签名核对。原相机几何/连续性/同步回归均通过；新增纯 Java 放置检查：432 组放置、26728 帧，涵盖四朝向、六个输入槽、普通/Shift 起点、台边路径、接触、预览一致性及抬手后的解锁。使用已阅读的宿主 Spring3 数学公式作参考，采样最长约 0.60 个动画秒（基础 .36 秒加接触等待）。这不是实际游戏计时保证。
+
+产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.2.12-alpha.jar`。GitHub Actions 使用 Java 21/Gradle Wrapper，独立构建及检查成功后才以同次产物创建 Pre-release。
+
+没有运行 Minecraft、runClient、runServer 或任何游戏内/画面测试。尚待玩家验证宿主持物渲染、输入锁实际作用范围、交接与预览观感、Esc/同步纠正，以及资源包、光影和多人兼容。用户反馈上一版相机闪烁修复，本版保留该实现；不把用户反馈描述为开发环境测试结果。
+
+以下保留旧版本记录。
+
 # v0.2.11-alpha 构建记录
 
 2026-10-31（Asia/Shanghai）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。分阶段 compileJava 成功；最终通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（8 秒），保留 TLS 校验。Gradle test 为 NO-SOURCE，不将其描述为游戏测试。

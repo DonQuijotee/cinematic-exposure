@@ -9,12 +9,16 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Observe completed vanilla prediction; never cancel, delay, resend or perform a click. */
+/** Keep original prediction; only reject new Lightroom clicks during its placement animation. */
 @Mixin(MultiPlayerGameMode.class)
 public abstract class InventoryClickMixin {
-    @Inject(method = "handleInventoryMouseClick", at = @At("HEAD"))
+    @Inject(method = "handleInventoryMouseClick", at = @At("HEAD"), cancellable = true)
     private void cinematicExposure$before(int containerId, int slot, int button, ClickType type,
             Player player, CallbackInfo ci) {
+        if (MenuObservations.blocksClick(containerId)) {
+            ci.cancel(); // No prediction, packet or deferred click is created for rejected input.
+            return;
+        }
         MenuObservations.beforeClick(containerId);
     }
     @Inject(method = "handleInventoryMouseClick", at = @At("RETURN"))

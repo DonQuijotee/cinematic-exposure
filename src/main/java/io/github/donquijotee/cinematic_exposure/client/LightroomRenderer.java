@@ -51,8 +51,12 @@ public final class LightroomRenderer implements BlockEntityRenderer<LightroomBlo
 
     private void renderPhotograph(LightroomBlockEntity entity, PoseStack pose, MultiBufferSource buffers, int light) {
         var menu = matchingMenu(entity);
+        var station = dev.dyslexic.cinematic.client.Scene.station(LightroomStation.class);
+        boolean placingFilm = station != null && station.hidesFilmPreview(entity.getBlockPos());
         // Selection, like progress, is synchronized into the client's separate menu data.
-        var frame = menu != null ? menu.getFrameByIndex(menu.getSelectedFrame()) : entity.getSelectedFrame();
+        // The real menu already contains a newly inserted film during its placement animation.
+        // Reveal that film's preview only when the same handoff has made it visible on the table.
+        var frame = placingFilm ? null : menu != null ? menu.getFrameByIndex(menu.getSelectedFrame()) : entity.getSelectedFrame();
         boolean filmPreview = frame != null;
         // With no film, show the real top output photograph, if any. Never mutate the stored stack.
         if (frame == null) {

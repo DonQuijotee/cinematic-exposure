@@ -9,6 +9,7 @@ Source: https://github.com/dcvke/CinematicInteractions
 Baseline: c79e1b9e05347165f6766700007cef45c8ce4d57 (0.18.12).
 The add-on invokes the installed host’s hand renderer and SceneScreen drawer rendering/picking.
 The camera adapter follows SceneScreen’s drawer layout formulas; no host JAR or textures are bundled.
+The Lightroom edge-placement geometry and timing adapt TableStation.layHands; ordinary hand following runs through the installed host.
 
 MIT License
 
