@@ -6,7 +6,6 @@ import io.github.donquijotee.cinematic_exposure.ClientConfig;
 import io.github.mortuusars.exposure.world.inventory.CameraInHandAttachmentsMenu;
 import io.github.mortuusars.exposure.world.item.camera.Attachment;
 import io.github.mortuusars.exposure.world.item.camera.CameraItem;
-import io.github.mortuusars.exposure.world.item.component.StoredItemStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
@@ -27,7 +26,8 @@ public final class VisualSession {
     private SlotTransfer transfer;
     public Motion motion;
     private CameraAction action;
-    private ItemStack replacement = ItemStack.EMPTY;
+    private ItemStack clickCarried = ItemStack.EMPTY;
+    private boolean clickedWithHeldItem;
     private boolean leaving;
     private double weight, fromWeight, transitionTime, frameStep;
     private final Vec3 originEye;
@@ -38,7 +38,6 @@ public final class VisualSession {
     public final BlockPos lightPos;
     private ItemStack cameraStack = ItemStack.EMPTY;
     private HandSpring rightHand, leftHand;
-    final HandPickup pickup = new HandPickup();
     final ArmContinuity rightArm = new ArmContinuity(), leftArm = new ArmContinuity();
     private Vec3 cursorTarget;
     private boolean cursorRight;
@@ -101,12 +100,8 @@ public final class VisualSession {
             s.refresh();
             if (s.motion != null) {
                 s.motion.advance(step);
-                if (s.motion.done()) s.finishTransfer();
+                if (s.motion.done()) s.cancelTransfer();
             }
-            boolean right = s.carriedRight();
-            Vec3 eye = mc.gameRenderer.getMainCamera().getPosition();
-            s.pickup.observe(s.menu.getCarried(),s.position(right),HandReach.pocket(eye,s.forward,right),s.carry(right),s.motion == null);
-            s.pickup.advance(step);
         }
         if (s.leaving && s.weight < 0.001) current = null;
     }
@@ -115,6 +110,9 @@ public final class VisualSession {
     public static void beforeClick(int containerId) {
         if (!observes(containerId)) return;
         current.refresh();
+        current.clickCarried = current.menu.getCarried().copy();
+        current.clickedWithHeldItem = Minecraft.getInstance().screen instanceof CameraSceneScreen screen
+                && !screen.cursorInDrawer() && !Minecraft.getInstance().options.touchscreen().get();
         current.clickBefore = java.util.stream.IntStream.range(0,current.attachments().size())
                 .mapToObj(i -> current.menu.getSlot(i).getItem().copy()).toList();
     }
@@ -126,8 +124,8 @@ public final class VisualSession {
         for (int i=0;i<before.size();i++) {
             ItemStack after = s.menu.getSlot(i).getItem();
             if (ItemStack.matches(before.get(i),after)) continue;
-            // The latest real operation takes over immediately. No backlog of stale cursor gestures.
-            s.startTransfer(i,before.get(i),after);
+            // Native-style takes are immediate. Only a real insertion needs a placement gesture.
+            if (SlotTransfer.inserting(before.get(i),after)) s.startTransfer(i,before.get(i),after);
         }
         s.cameraStack = s.menu.getCamera().getStack().copy();
     }
@@ -148,7 +146,7 @@ public final class VisualSession {
         if (transfer != null && !transfer.reconcile(menu.getSlot(transfer.slot).getItem())) cancelTransfer();
     }
     private void cancelTransfer() {
-        transfer = null; motion = null; action = null; replacement = ItemStack.EMPTY;
+        transfer = null; motion = null; action = null;
     }
     private List<Attachment<?>> attachments() { return menu.getCamera().map((item,stack) -> item.getAttachments()); }
     private static Motion.Kind kind(Attachment<?> attachment) {
@@ -159,45 +157,29 @@ public final class VisualSession {
     }
 
     private void startTransfer(int slot, ItemStack before, ItemStack after) {
-        boolean inserting = SlotTransfer.inserting(before,after);
-        ItemStack item = SlotTransfer.moved(before,after,inserting);
+        ItemStack item = SlotTransfer.moved(before,after,true);
         Motion.Kind kind = kind(attachments().get(slot));
+        var part = CameraAssembly.Part.valueOf(kind.name());
         boolean right = kind != Motion.Kind.LENS && kind != Motion.Kind.FILTER;
-        boolean holding = pickup.holds(item) || motion != null && action != null && action.showsItem()
-                && motionRight() == right && ItemStack.isSameItemSameComponents(motion.item,item);
-        boolean swap = !before.isEmpty() && !after.isEmpty() && !ItemStack.isSameItemSameComponents(before,after);
-        replacement = swap ? after.copy() : ItemStack.EMPTY;
-        if (swap) { inserting = false; item = before; holding = false; }
-        boolean bag = swap || !inserting && !ItemStack.isSameItemSameComponents(menu.getCarried(),item);
-        begin(slot,before,after,item,kind,inserting,holding,bag);
-    }
-    private void begin(int slot, ItemStack before, ItemStack after, ItemStack item, Motion.Kind kind,
-                       boolean inserting, boolean holding, boolean bag) {
-        boolean film = kind == Motion.Kind.FILM;
-        double contact = inserting ? (film ? .74 : .80) : (film ? .43 : .18);
-        motion = new Motion(kind,inserting,item,film ? CameraAssembly.FILM_DURATION : kind == Motion.Kind.LENS ? 1.15 : .95,contact);
-        transfer = new SlotTransfer(slot,before,after,motion,bag);
-        boolean right = motionRight();
-        Vec3 pocket = HandReach.pocket(Minecraft.getInstance().gameRenderer.getMainCamera().getPosition(),forward,right);
-        Vec3 outward = switch (kind) {
-            case FILM -> assemblyOffset(new CameraAssembly.Point(0,1,0),forward,this.right);
-            case FLASH -> assemblyOffset(new CameraAssembly.Point(1,0,0),forward,this.right);
-            default -> assemblyOffset(new CameraAssembly.Point(0,0,-1),forward,this.right);
+        boolean holding = clickedWithHeldItem && ItemStack.isSameItemSameComponents(clickCarried,item);
+        motion = new Motion(kind,true,item,part.duration,CameraAssembly.CONTACT);
+        transfer = new SlotTransfer(slot,before,after,motion,false);
+        var outside = switch (kind) {
+            case FILM -> CameraAssembly.FILM_OUTSIDE;
+            case FLASH -> CameraAssembly.FLASH_OUTSIDE;
+            default -> CameraAssembly.LENS_SOCKET.add(new CameraAssembly.Point(0,0,kind == Motion.Kind.FILTER ? -.12 : -.22));
         };
-        action = new CameraAction(motion,position(right),inserting ? rest(right) : bag ? pocket : carry(right),pocket,
-                socket(kind),outward,holding,local(CameraAssembly.FILM_OUTSIDE),local(CameraAssembly.FILM_GATE),bag);
+        // A replacement removes the old prop immediately, then places the accepted new item once.
+        // The starting fist and its spring velocity survive every input and server acknowledgement.
+        action = new CameraAction(motion,new CameraAssembly.Placement(part,point(position(right)),point(rest(right)),
+                point(local(right ? CameraAssembly.RIGHT_TAKE : CameraAssembly.LEFT_TAKE)),point(socket(kind)),
+                point(local(outside)),point(local(CameraAssembly.FILM_GATE)),holding));
     }
-    private void finishTransfer() {
-        if (!replacement.isEmpty() && motion.contacted() && transfer.reconcile(menu.getSlot(transfer.slot).getItem())) {
-            ItemStack next = replacement;
-            replacement = ItemStack.EMPTY;
-            begin(transfer.slot,ItemStack.EMPTY,next,next,motion.kind,true,false,false);
-            return;
-        }
-        // A removed attachment is already held. Never make it do another inventory pickup.
-        if (!motion.inserting || ItemStack.isSameItemSameComponents(menu.getCarried(),motion.item)) pickup.settle(menu.getCarried());
-        else pickup.reset();
-        cancelTransfer();
+
+    public boolean busy() { return motion != null && !motion.done(); }
+    public static boolean blocksClick(int containerId) {
+        return observes(containerId) && current.busy()
+                && Minecraft.getInstance().screen instanceof CameraSceneScreen screen && !screen.finishingInput();
     }
 
     public ItemStack cameraStack() {
@@ -205,10 +187,7 @@ public final class VisualSession {
         if (motion == null) return display;
         Attachment<?> attachment = attachments().get(transfer.slot);
         // Both renders use the same contact decision, made from this frame's actual smoothed fist.
-        if (motion.inserting) {
-            if (!motion.contacted()) display.remove(attachment.component());
-        } else if (!motion.contacted()) display.set(attachment.component(),new StoredItemStack(motion.item.copy()));
-        else display.remove(attachment.component());
+        if (!motion.contacted()) display.remove(attachment.component());
         return display;
     }
     public CameraAction action() { return action; }
@@ -244,11 +223,11 @@ public final class VisualSession {
     }
     public Vec3 followTarget(boolean right) {
         if (cursorTarget != null && cursorRight == right) return cursorTarget;
-        return pickup.showsItem() && carriedRight() == right ? carry(right) : rest(right);
+        return !menu.getCarried().isEmpty() && carriedRight() == right ? carry(right) : rest(right);
     }
     public Vec3 actionTarget(CameraAction action) {
-        // Bagged items disappear below view before the empty hand returns to the live cursor.
-        double start = motion.kind == Motion.Kind.FILM ? .94 : .90;
+        // Only the final return follows the live cursor; insertion keeps its safe socket corridor.
+        double start = motion.kind == Motion.Kind.FILM ? .92 : .90;
         return action.hand().lerp(followTarget(motionRight()),Motion.window(motion.progress(),start,1));
     }
     public Vec3 entranceOffset() { return new Vec3(0,-1.25*(1-weight),0).add(forward.scale(-.14*(1-weight))); }

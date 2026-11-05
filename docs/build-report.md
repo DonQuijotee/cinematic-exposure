@@ -1,3 +1,19 @@
+# v0.2.13-alpha 构建记录
+
+2026-11-05（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。阶段 compileJava 成功；通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（13 秒），TLS 校验保持开启。Gradle test 为 NO-SOURCE。
+
+`tools/verify-artifact.py` 检查全部通过，包括打包、版本元数据、Java 21 字节码、语言、许可证和宿主接口。相机纯 Java 检查覆盖 1014091 个采样：四种附件、已持物/机身旁取件、30/60/144 FPS、.25/1/3 倍速、实际 HandSpring 平滑与接触等待、回手跟随、可达约束和原版闪光灯包络。五种 GUI 高度的视点到机身中心实际距离约 .734–.740 格，相比上版增加 .024–.095 格。采样最长放置约 .80 个动画秒，原版闪光灯最小包络余量约 .000965 格；几何采样不代表完整碰撞或观感保证。
+
+新增输入门控检查涵盖忙碌拒绝、跨越动画结束的松手、原事务/嵌套调用完整收尾及异常恢复。保留同步/纠正、手位和掌面连续性以及暗房四朝向、六材料槽的放置检查，均通过。所有运行检查仅加载附属的纯数学/控制类，没有 Minecraft 或依赖运行类。
+
+首轮路径检查发现移远后的袖子包络擦过闪光灯，调整了机身高度范围后通过。最终安装道具、实际接触、模型组件共用同一时机；持续使用原手臂平滑状态，不重置闪烁修正。
+
+产物：`build/libs/cinematic-exposure-1.21.1-neoforge-0.2.13-alpha.jar`。GitHub Actions 使用 Java 21/Gradle Wrapper 独立构建和执行上述检查，仅成功后发布同次安装 JAR 为 Pre-release，远程结果以 Actions 记录为准。
+
+未运行 Minecraft、runClient、runServer 或游戏内/多人/画面测试。需玩家验证稍远持握的构图、装有闪光灯时装卷、镜头/滤镜收尾、普通/Shift/数字键安装、连点及迟到松手、完整拖拽/触屏、同步纠正与退出、资源包/光影兼容。原模型间距较小，不能宣称所有模型都不穿模。
+
+以下保留旧版本记录。
+
 # v0.2.12-alpha 构建记录
 
 2026-11-01（Asia/Hong_Kong）。Java 21 / Gradle 8.8 / NeoForge 21.1.255。阶段 compileJava 成功（7 秒）；通过云代理/CA 助手执行实际 `./gradlew build --stacktrace`，BUILD SUCCESSFUL（8 秒），TLS 校验保持开启。Gradle test 为 NO-SOURCE。

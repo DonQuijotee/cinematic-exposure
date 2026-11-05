@@ -1,13 +1,17 @@
 import io.github.donquijotee.cinematic_exposure.client.CameraAssembly;
 import io.github.donquijotee.cinematic_exposure.client.CameraAssembly.Point;
+import io.github.donquijotee.cinematic_exposure.client.CameraAssembly.Part;
 import io.github.donquijotee.cinematic_exposure.client.HandSpring;
 import io.github.donquijotee.cinematic_exposure.client.TransferTimeline;
+import io.github.donquijotee.cinematic_exposure.client.PlacementInput;
 
-/** Runs only the addon's pure geometry. No Minecraft, renderer, window, client or server is loaded. */
+/** Pure production geometry/controllers only. No Minecraft, renderer, window, client or server. */
 class CheckCameraAssembly {
     // Exposure 1.9.19 camera_parts/flash.json: [1,1,6]..[5,5,8], body center [8,3,8], scale .72.
     static final Point MIN = new Point(.135,-.09,-.09), MAX = new Point(.315,.09,0);
-    static double closest = Double.POSITIVE_INFINITY;
+    static final Point LEFT = new Point(-.38,-.49,.125), RIGHT = new Point(.38,-.49,.125);
+    static double closest = Double.POSITIVE_INFINITY, longest = 0;
+    static int samples;
     static void require(boolean value, String message) { if (!value) throw new AssertionError(message); }
     static double boxDistance(Point p) {
         double x = Math.max(Math.max(MIN.x()-p.x(),p.x()-MAX.x()),0);
@@ -20,96 +24,121 @@ class CheckCameraAssembly {
         closest = Math.min(closest,distance-radius);
         require(distance >= radius,what+" intersects flash: distance="+distance+", point="+p);
     }
-    // Host wide sleeve: 4.5 px square * .55 / 16, circumscribed radius < .11.
-    static void checkHand(Point hand, Point shoulder, boolean shown, String context) {
-        clear(hand,.11,"palm "+context);
-        if (shown) clear(hand,.156,"film prop "+context);
-        for (int k=0;k<=40;k++) clear(shoulder.lerp(hand,k/40.0),.11,"sleeve "+context);
+    static Point at(Point work, Point local) { return work.add(CameraAssembly.orient(local)); }
+    static Point limit(Point hand, Point shoulder) {
+        Point delta = hand.subtract(shoulder);
+        return delta.length() > .74 ? shoulder.add(delta.scale(.74/delta.length())) : hand;
+    }
+    static void checkHand(Point world, Point shoulder, Point work, boolean shown, Part part) {
+        require(world.subtract(shoulder).length() <= .74001,"hand exceeds reach: "+part);
+        // A flash being installed occupies its own socket; film and lens work must clear mounted flash.
+        if (part != Part.FLASH) {
+            Point hand = CameraAssembly.unorient(world.subtract(work));
+            Point localShoulder = CameraAssembly.unorient(shoulder.subtract(work));
+            clear(hand,.11,"palm "+part);
+            if (shown) clear(hand,.156,"prop "+part);
+            for (int k=0;k<=40;k++) clear(localShoulder.lerp(hand,k/40.0),.11,"sleeve "+part);
+        }
+        samples++;
+    }
+    static void placement(Point work, Point start, Point follow, Part part, boolean holding) {
+        boolean right = part == Part.FILM || part == Part.FLASH;
+        Point shoulder = right ? RIGHT : LEFT;
+        Point rest = at(work,right ? CameraAssembly.RIGHT_REST : CameraAssembly.LEFT_GRIP);
+        Point take = at(work,right ? CameraAssembly.RIGHT_TAKE : CameraAssembly.LEFT_TAKE);
+        Point socket = at(work,switch (part) {
+            case FILM -> CameraAssembly.FILM_SOCKET;
+            case FLASH -> CameraAssembly.FLASH_SOCKET;
+            default -> CameraAssembly.LENS_SOCKET;
+        });
+        Point outside = at(work,switch (part) {
+            case FILM -> CameraAssembly.FILM_OUTSIDE;
+            case FLASH -> CameraAssembly.FLASH_OUTSIDE;
+            default -> CameraAssembly.LENS_SOCKET.add(new Point(0,0,part == Part.FILTER ? -.12 : -.22));
+        });
+        var path = new CameraAssembly.Placement(part,start,rest,take,socket,outside,at(work,CameraAssembly.FILM_GATE),holding);
+        require(path.hand(0).subtract(start).length()<1e-9,"start continuity");
+        require(path.hand(1).subtract(rest).length()<1e-9,"end continuity");
+        require(path.hand(CameraAssembly.CONTACT).subtract(socket).length()<1e-9,"seat at contact");
+        require(take.subtract(rest).length()<.35,"take must stay near working hand, not below viewport");
+        for (double boundary : new double[]{.16,.30,.46,.54,.62,.70,.82,.84,.92})
+            require(path.hand(boundary-1e-7).subtract(path.hand(boundary+1e-7)).length()<1e-4,"phase continuity");
+        if (part == Part.LENS || part == Part.FILTER) require(path.twist(CameraAssembly.CONTACT)==90,"lens must fasten");
+        for (int i=0;i<=200;i++) {
+            double t = i/200.0;
+            try { checkHand(path.hand(t),shoulder,work,path.itemScale(t)>.001 && t<CameraAssembly.CONTACT,part); }
+            catch (AssertionError e) { throw new AssertionError("work="+work+", start="+start+", held="+holding+", t="+t,e); }
+        }
+        for (int fps : new int[]{30,60,144}) for (double speed : new double[]{.25,1,3}) {
+            var spring = new HandSpring(start);
+            var timing = new TransferTimeline(part.duration,CameraAssembly.CONTACT);
+            double dt = speed/fps, elapsed = 0;
+            for (int frame=0;!timing.done() && frame<5000;frame++) {
+                timing.advance(dt);
+                double t = timing.progress(), tail = part == Part.FILM ? .92 : .90;
+                Point target = path.hand(t).lerp(follow,CameraAssembly.ease((t-tail)/(1-tail)));
+                spring.update(limit(target,shoulder),dt);
+                Point smoothed = spring.limit(shoulder,.74);
+                timing.touch(smoothed.subtract(socket).length()<.045);
+                checkHand(smoothed,shoulder,work,path.itemScale(t)>.001 && !timing.contacted(),part);
+                elapsed += dt;
+            }
+            require(timing.contacted(),part+" did not contact before timeout; work="+work+", start="+start);
+            require(elapsed<1.15,"placement should finish promptly: "+elapsed);
+            longest = Math.max(longest,elapsed);
+        }
+    }
+    static void input() {
+        var gate = new PlacementInput();
+        require(!gate.rejectPress(0,false),"idle press allowed");
+        gate.finish(() -> {
+            require(gate.finishing(),"original admitted transaction can finish all its menu clicks");
+            gate.finish(() -> { require(gate.finishing(),"nested native call"); return true; });
+            require(gate.finishing(),"nested completion retains outer admission");
+            return true;
+        });
+        require(!gate.finishing(),"future input must be gated again");
+        require(gate.rejectPress(0,true),"busy press refused");
+        require(gate.rejectDrag(0,false),"refused press cannot drag after animation");
+        require(gate.rejectRelease(0,false),"refused press cannot place on late release");
+        require(!gate.rejectPress(0,false) && !gate.rejectRelease(0,false),"next new gesture allowed");
+        require(gate.rejectRelease(1,true),"ongoing press release ignored during placement");
+        try { gate.finish(() -> { throw new IllegalStateException("check cleanup"); }); }
+        catch (IllegalStateException expected) { }
+        require(!gate.finishing(),"input failure must restore admission gate");
     }
     public static void main(String[] args) {
-        Point left = new Point(-.38,-.49,.125), right = new Point(.38,-.49,.125);
-        Point pocket = right.add(new Point(0,-.46,.04));
+        input();
         Point lensAxis = CameraAssembly.orient(new Point(0,0,-1));
-        require(lensAxis.x() < -.55 && lensAxis.z() < -.4,"lens must face diagonally left and toward viewer");
-        require(CameraAssembly.orient(CameraAssembly.FILM_SOCKET).x() > .05,"film must be on right");
-        require(CameraAssembly.orient(CameraAssembly.LEFT_GRIP).x() < 0,"left supports front");
-        require(CameraAssembly.orient(CameraAssembly.RIGHT_REST).x() > 0,"right supports rear");
-        require(CameraAssembly.FILM_SOCKET.y() > .135 && CameraAssembly.FILM_SOCKET.z() > .09,"film enters top rear");
+        require(lensAxis.x()<-.55 && lensAxis.z()<-.4,"diagonal lens presentation");
+        require(CameraAssembly.orient(CameraAssembly.FILM_SOCKET).x()>.05,"film on right");
         Point filmAxis = CameraAssembly.FILM_OUTSIDE.subtract(CameraAssembly.FILM_SOCKET);
-        require(filmAxis.y() > .15 && Math.abs(filmAxis.x())+Math.abs(filmAxis.z()) < 1e-10,"film insertion must be along local top axis");
-        int samples = 0;
-        for (double y : new double[]{-.32,-.5,-.8}) for (double z : new double[]{.65,.85,1.3}) {
-            Point work = CameraAssembly.fitWork(new Point(0,y,z),left,right,.74);
-            Point socket = work.add(CameraAssembly.orient(CameraAssembly.FILM_SOCKET));
-            Point outside = work.add(CameraAssembly.orient(CameraAssembly.FILM_OUTSIDE));
-            Point gate = work.add(CameraAssembly.orient(CameraAssembly.FILM_GATE));
-            Point grip = work.add(CameraAssembly.orient(CameraAssembly.RIGHT_REST));
-            Point carry = work.add(CameraAssembly.orient(CameraAssembly.RIGHT_CARRY));
-            require(work.add(CameraAssembly.orient(CameraAssembly.LEFT_GRIP)).subtract(left).length() <= .74001,"left grip reach");
-            for (Point anchor : new Point[]{socket,outside,gate,grip,carry})
-                require(anchor.subtract(right).length() <= .74001,"film corridor exceeds reach");
-            java.util.List<Point> starts = new java.util.ArrayList<>(java.util.List.of(
-                    CameraAssembly.RIGHT_REST,CameraAssembly.RIGHT_CARRY,CameraAssembly.FILM_SOCKET));
-            for (boolean rightHand : new boolean[]{true,false}) {
-                Point shoulder = rightHand ? right : left;
-                Point anchor = rightHand ? carry : work.add(CameraAssembly.orient(CameraAssembly.LEFT_CARRY));
+        require(filmAxis.y()>.10 && Math.abs(filmAxis.x())+Math.abs(filmAxis.z())<1e-10,"film enters vertically at top rear");
+        int[] heights = {180,240,360,540,1080};
+        // Captured actual fitted distances in v0.2.12, not the unbounded desired depth.
+        double[] previousDistance = {.71653669,.71061598,.69391565,.66577655,.63867080};
+        for (int size=0;size<heights.length;size++) {
+            Point work = CameraAssembly.workPoint(heights[size],.74);
+            double distance = work.subtract(new Point(0,-.03,.045)).length();
+            require(distance>previousDistance[size]+.015,"camera must actually be farther after reach fitting");
+            require(distance<previousDistance[size]+.14,"distance change should be modest");
+            for (boolean right : new boolean[]{true,false}) {
+                Point shoulder = right ? RIGHT : LEFT;
+                Point rest = at(work,right ? CameraAssembly.RIGHT_REST : CameraAssembly.LEFT_GRIP);
+                Point carry = at(work,right ? CameraAssembly.RIGHT_CARRY : CameraAssembly.LEFT_CARRY);
+                var starts = new java.util.ArrayList<Point>(java.util.List.of(rest,carry));
                 for (int ix=0;ix<=6;ix++) for (int iy=0;iy<=6;iy++) for (int iz=0;iz<=6;iz++) {
-                    Point cursor = new Point(-.5+ix/6.0,-.5+iy/6.0,-1+iz/3.0);
-                    Point raw = work.add(CameraAssembly.orient(CameraAssembly.freeTarget(cursor,rightHand)));
-                    Point free = CameraAssembly.reachableFrom(anchor,raw,shoulder,.74);
-                    require(free.subtract(shoulder).length() <= .74001,"cursor hand reach");
-                    Point local = CameraAssembly.unorient(free.subtract(work));
-                    checkHand(local,CameraAssembly.unorient(shoulder.subtract(work)),true,"cursor zone");
-                    if (rightHand && (ix==0 || ix==6) && (iy==0 || iy==6) && (iz==0 || iz==6)) starts.add(local);
+                    Point raw = at(work,CameraAssembly.freeTarget(new Point(-.5+ix/6.0,-.5+iy/6.0,-1+iz/3.0),right));
+                    Point free = CameraAssembly.reachableFrom(carry,raw,shoulder,.74);
+                    checkHand(free,shoulder,work,true,Part.FILM);
+                    if ((ix==0 || ix==6) && (iy==0 || iy==6) && (iz==0 || iz==6)) starts.add(free);
                 }
+                for (Point start : starts) for (boolean holding : new boolean[]{true,false})
+                    for (Part part : right ? new Part[]{Part.FILM,Part.FLASH} : new Part[]{Part.LENS,Part.FILTER})
+                        for (Point follow : new Point[]{rest,carry,start}) placement(work,start,follow,part,holding);
             }
-            for (Point startAnchor : starts) {
-                Point start = work.add(CameraAssembly.orient(startAnchor));
-                for (boolean inserting : new boolean[]{true,false}) for (boolean holding : new boolean[]{true,false}) {
-                    Point rest = inserting ? grip : carry;
-                    var path = new CameraAssembly.FilmPath(start,rest,pocket,socket,outside,gate,holding);
-                    require(path.hand(0,inserting).subtract(start).length()<1e-9,"start continuity");
-                    require(path.hand(1,inserting).subtract(rest).length()<1e-9,"end continuity");
-                    for (double boundary : new double[]{.16,.20,.28,.36,.43,.48,.50,.65,.68,.74,.82,.86,.94})
-                        require(path.hand(boundary-1e-7,inserting).subtract(path.hand(boundary+1e-7,inserting)).length()<1e-4,"phase continuity");
-                    Point shoulder = CameraAssembly.unorient(right.subtract(work));
-                    for (int i=0;i<=400;i++) {
-                        double t = i/400.0;
-                        Point hand = CameraAssembly.unorient(path.hand(t,inserting).subtract(work));
-                        boolean shown = inserting ? (holding || t>=.18) && t<.74 : t>=.43;
-                        // Sleeve envelope along the full forearm, including the shoulder end.
-                        checkHand(hand,shoulder,shown,"work="+work+", t="+t);
-                        samples++;
-                    }
-                    for (int fps : new int[]{30,60,144}) for (double speed : new double[]{.25,1,3}) {
-                        var spring = new HandSpring(start);
-                        var timing = new TransferTimeline(CameraAssembly.FILM_DURATION,inserting ? .74 : .43);
-                        double dt = speed/fps;
-                        for (int frame=0;!timing.done() && frame<5000;frame++) {
-                            timing.advance(dt);
-                            double t = timing.progress();
-                            spring.update(path.hand(t,inserting),dt);
-                            Point smoothed = spring.limit(right,.74);
-                            timing.touch(smoothed.subtract(socket).length() < .045);
-                            boolean shown = inserting ? (holding || t>=.18) && !timing.contacted() : timing.contacted();
-                            checkHand(CameraAssembly.unorient(smoothed.subtract(work)),shoulder,shown,"work="+work+", smoothed t="+t);
-                            samples++;
-                        }
-                        require(timing.contacted(),"film hand did not reach contact before visual timeout");
-                    }
-                }
-            }
-            // Diagonal lens work belongs to the left arm, with the right resting under the rear.
-            Point leftShoulder = CameraAssembly.unorient(left.subtract(work));
-            for (Point anchor : new Point[]{CameraAssembly.LEFT_GRIP,CameraAssembly.LEFT_CARRY,
-                    CameraAssembly.LENS_SOCKET,new Point(0,0,-.48)}) {
-                Point worldAnchor = work.add(CameraAssembly.orient(anchor));
-                require(worldAnchor.subtract(left).length() <= .74001,"left lens path reach");
-                checkHand(anchor,leftShoulder,false,"left grip/lens path");
-            }
-            Point probe = new Point(.2,-.3,.1);
-            require(CameraAssembly.unorient(CameraAssembly.orient(probe)).subtract(probe).length()<1e-12,"pose inverse");
+            System.out.printf("PASS: GUI height %d, actual camera distance %.3f -> %.3f m%n",heights[size],previousDistance[size],distance);
         }
-        System.out.println("PASS: "+samples+" film-path samples; pose, reach, phase continuity and stock flash clearance; min margin="+closest);
+        System.out.println("PASS: "+samples+" camera samples; near-edge placement, all sockets, flash clearance, reach, continuity and input admission; min margin="+closest+", max placement seconds="+longest);
     }
 }

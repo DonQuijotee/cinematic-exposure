@@ -15,6 +15,7 @@ import org.lwjgl.glfw.GLFW;
 /** Presentation adapter only: vanilla container input operates Exposure's unmodified menu and slots. */
 public final class CameraSceneScreen extends AbstractContainerScreen<CameraInHandAttachmentsMenu> {
     final CinematicDrawer drawer = new CinematicDrawer();
+    private final PlacementInput input = new PlacementInput();
 
     public CameraSceneScreen(CameraInHandAttachmentsMenu menu) {
         super(menu, Minecraft.getInstance().player.getInventory(), Component.translatable("cinematic_exposure.camera.title"));
@@ -68,27 +69,8 @@ public final class CameraSceneScreen extends AbstractContainerScreen<CameraInHan
 
     /** Leave the same full drawer footprint clear whether it is folded or expanded. */
     public Vec3 workPoint(Vec3 eye, Vec3 forward, Vec3 right) {
-        double scale = net.minecraft.util.Mth.clamp(height*0.068f/18, 0.6f, 1.25f);
-        double top = 6+86*scale+12;
-        double cy = (top+height-24)/2;
-        double depth = Math.max(0.85, 0.60*height/(2*Math.tan(Math.toRadians(33))*Math.max(64,height-top-24)));
-        double down = (2*cy/height-1)*depth*Math.tan(Math.toRadians(33));
-        double pitch = Math.toRadians(18);
-        Vec3 work = eye.add(forward.scale(0.045+depth*Math.cos(pitch)-down*Math.sin(pitch)))
-                .add(0,-0.03-depth*Math.sin(pitch)-down*Math.cos(pitch),0);
-        // A small GUI viewport must not place the body metres away just to fit its projection.
-        // Move the body with the supporting grip so the left hand still touches the camera.
-        Vec3 viewEye = eye.add(forward.scale(0.045)).add(0,-0.03,0);
-        // Fit the whole film corridor, not just the left grip. Otherwise the reach clamp cuts corners
-        // back through the mounted flash even when the authored path goes around it.
-        var fitted = CameraAssembly.fitWork(yawPoint(work.subtract(eye),forward,right),
-                yawPoint(HandReach.shoulder(viewEye,forward,false).subtract(eye),forward,right),
-                yawPoint(HandReach.shoulder(viewEye,forward,true).subtract(eye),forward,right),HandReach.MAX);
+        var fitted = CameraAssembly.workPoint(height,HandReach.MAX);
         return eye.add(right.scale(fitted.x())).add(0,fitted.y(),0).add(forward.scale(fitted.z()));
-    }
-
-    private static CameraAssembly.Point yawPoint(Vec3 point, Vec3 forward, Vec3 right) {
-        return new CameraAssembly.Point(point.dot(right),point.y,point.dot(forward));
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
@@ -186,9 +168,38 @@ public final class CameraSceneScreen extends AbstractContainerScreen<CameraInHan
         return false;
     }
 
+    private boolean busy() {
+        var session = VisualSession.get();
+        return session != null && session.busy();
+    }
+    public boolean finishingInput() { return input.finishing(); }
+
+    @Override public boolean mouseClicked(double x, double y, int button) {
+        if (input.rejectPress(button,busy())) return true;
+        return input.finish(() -> super.mouseClicked(x,y,button));
+    }
+    @Override public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
+        if (input.rejectDrag(button,busy())) return true;
+        return input.finish(() -> super.mouseDragged(x,y,button,dx,dy));
+    }
+    @Override public boolean mouseReleased(double x, double y, int button) {
+        if (input.rejectRelease(button,busy())) {
+            clearDraggingState();
+            isQuickCrafting = false;
+            quickCraftSlots.clear();
+            setDragging(false);
+            return true;
+        }
+        // Finish vanilla's whole admitted transaction (including touchscreen return-to-source clicks).
+        // The gate rejects future input, never half of a drag/swap already in progress.
+        return input.finish(() -> super.mouseReleased(x,y,button));
+    }
+
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
         if (key == GLFW.GLFW_KEY_TAB) { if (!isQuickCrafting) drawer.toggle(); return true; }
-        return super.keyPressed(key, scan, modifiers);
+        // Escape/inventory-close still work; the menu hook refuses only item operations while busy.
+        if (busy()) return super.keyPressed(key,scan,modifiers);
+        return input.finish(() -> super.keyPressed(key,scan,modifiers));
     }
 
     @Override protected void containerTick() {

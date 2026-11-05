@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Keep original prediction; only reject new Lightroom clicks during its placement animation. */
+/** Keep original prediction; only reject new immersive clicks during its placement animation. */
 @Mixin(MultiPlayerGameMode.class)
 public abstract class InventoryClickMixin {
     @Inject(method = "handleInventoryMouseClick", at = @At("HEAD"), cancellable = true)

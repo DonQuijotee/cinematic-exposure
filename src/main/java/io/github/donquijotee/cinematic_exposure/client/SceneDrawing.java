@@ -41,8 +41,6 @@ public final class SceneDrawing {
             // Keep the other hand supporting the body throughout a transfer.
             rightHand = session.rest(true); leftHand = session.rest(false);
             if (session.motionRight()) rightHand = session.actionTarget(action); else leftHand = session.actionTarget(action);
-        } else if (session.pickup.active()) {
-            if (session.carriedRight()) rightHand = session.pickup.hand(session.followTarget(true)); else leftHand = session.pickup.hand(session.followTarget(false));
         }
         // Mouse following is limited to the operating side; the supporting grip stays on the body.
         Vec3 entrance = session.entranceOffset();
@@ -62,9 +60,9 @@ public final class SceneDrawing {
         if (action != null && action.showsItem() && weight > 0.99) {
             Vec3 held = session.motionRight() ? rightHand : leftHand;
             item(pose, buffers, eye, motion.item, held, session.forward,
-                    0.22f, CameraAssembly.TILT, action.twist(), light);
+                    0.22f * action.itemScale(), CameraAssembly.TILT, action.twist(), light);
         }
-        if (motion == null && session.pickup.showsItem() && weight > 0.99
+        if (motion == null && weight > 0.99
                 && mc.screen instanceof CameraSceneScreen screen && screen.usesWorldCursor() && !screen.getMenu().getCarried().isEmpty()) {
             var carried = screen.getMenu().getCarried();
             item(pose,buffers,eye,carried,session.carriedRight() ? rightHand : leftHand,session.forward,

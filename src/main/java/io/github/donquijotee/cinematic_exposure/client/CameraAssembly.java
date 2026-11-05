@@ -5,16 +5,26 @@ package io.github.donquijotee.cinematic_exposure.client;
 public final class CameraAssembly {
     public static final float YAW = -60;
     public static final float TILT = 12;
-    public static final double FILM_DURATION = 1.6;
+    public static final double CONTACT = .70;
     public static final Point LEFT_GRIP = new Point(0, -0.20, -0.16);
     public static final Point RIGHT_REST = new Point(0, -0.20, 0.20);
     public static final Point LEFT_CARRY = new Point(0, -0.06, -0.48);
-    public static final Point RIGHT_CARRY = new Point(0, -0.03, 0.46);
+    public static final Point RIGHT_CARRY = new Point(0, -0.03, 0.42);
     public static final Point FILM_SOCKET = new Point(0, 0.18, 0.20);
-    public static final Point FILM_OUTSIDE = new Point(0, 0.39, 0.20);
-    public static final Point FILM_GATE = new Point(0, 0.12, 0.44);
+    public static final Point FILM_OUTSIDE = new Point(0, 0.31, 0.20);
+    public static final Point FILM_GATE = new Point(0, 0.12, 0.40);
     public static final Point FLASH_SOCKET = new Point(0.34, 0, -0.045);
     public static final Point LENS_SOCKET = new Point(0, 0, -0.26);
+
+    public static final Point FLASH_OUTSIDE = FLASH_SOCKET.add(new Point(.22,0,0));
+    public static final Point LEFT_TAKE = LEFT_CARRY.add(new Point(0,-.03,.04));
+    public static final Point RIGHT_TAKE = RIGHT_CARRY.add(new Point(0,-.03,0));
+
+    public enum Part {
+        FILM(.68), FLASH(.40), LENS(.50), FILTER(.44);
+        public final double duration;
+        Part(double duration) { this.duration = duration; }
+    }
 
     private CameraAssembly() {}
 
@@ -43,19 +53,31 @@ public final class CameraAssembly {
 
     /** Fit the body and both grips in a yaw-aligned frame, keeping the authored film path reachable. */
     public static Point fitWork(Point work, Point leftShoulder, Point rightShoulder, double reach) {
-        Point[] anchors = {LEFT_GRIP,LENS_SOCKET,LEFT_CARRY,RIGHT_REST,RIGHT_CARRY,FILM_SOCKET,FILM_OUTSIDE,FILM_GATE};
+        Point[] anchors = {LEFT_GRIP,LENS_SOCKET,LEFT_CARRY,LEFT_TAKE,RIGHT_REST,RIGHT_CARRY,
+                RIGHT_TAKE,FILM_SOCKET,FILM_OUTSIDE,FILM_GATE,FLASH_SOCKET,FLASH_OUTSIDE};
         double shoulderY = (leftShoulder.y()+rightShoulder.y())/2;
         // Keep the camera near shoulder height; a low body makes the straight sleeve cross the flash.
         for (int pass=0;pass<48;pass++) {
-            work = new Point(work.x(),Math.clamp(work.y(),shoulderY-.04,shoulderY+.16),work.z());
+            work = new Point(work.x(),Math.clamp(work.y(),shoulderY-.04,shoulderY+.04),work.z());
             for (int i=0;i<anchors.length;i++) {
-                Point shoulder = i < 3 ? leftShoulder : rightShoulder;
+                Point shoulder = i < 4 ? leftShoulder : rightShoulder;
                 Point hand = work.add(orient(anchors[i]));
                 Point delta = hand.subtract(shoulder);
                 if (delta.length() > reach) work = work.add(shoulder.add(delta.scale(reach/delta.length())).subtract(hand));
             }
         }
         return work;
+    }
+
+    /** Yaw-local body position, shared with the screen and non-game geometry checks. */
+    public static Point workPoint(int height, double reach) {
+        double scale = Math.clamp(height*.068/18,.6,1.25);
+        double top = 6+86*scale+12, cy = (top+height-24)/2;
+        double depth = Math.max(.95,.60*height/(2*Math.tan(Math.toRadians(33))*Math.max(64,height-top-24)));
+        double down = (2*cy/height-1)*depth*Math.tan(Math.toRadians(33)), pitch = Math.toRadians(18);
+        Point desired = new Point(0,-.03-depth*Math.sin(pitch)-down*Math.cos(pitch),
+                .045+depth*Math.cos(pitch)-down*Math.sin(pitch));
+        return fitWork(desired,new Point(-.38,-.49,.125),new Point(.38,-.49,.125),reach);
     }
 
     public static double ease(double t) {
@@ -70,7 +92,7 @@ public final class CameraAssembly {
     public static Point freeTarget(Point cursor, boolean rightHand) {
         return new Point(InteractionMotion.softBound(cursor.x(), -.09, .09, .04),
                 InteractionMotion.softBound(cursor.y(), -.10, .18, .06),
-                rightHand ? InteractionMotion.softBound(cursor.z(), .40, .56, .04)
+                rightHand ? InteractionMotion.softBound(cursor.z(), .38, .52, .04)
                         : InteractionMotion.softBound(cursor.z(), -.56, -.40, .04));
     }
 
@@ -86,32 +108,36 @@ public final class CameraAssembly {
         return anchor.lerp(target,low);
     }
 
-    /** Approach above the rear, lower into the top opening, and withdraw along the same safe corridor. */
-    public record FilmPath(Point start, Point rest, Point pocket, Point socket, Point outside, Point gate,
-                           boolean alreadyHolding) {
-        public Point hand(double t, boolean inserting) {
-            if (inserting) {
-                if (alreadyHolding) {
-                    if (t < 0.36) return move(start,gate,t,0,0.36);
-                } else {
-                    if (t < 0.16) return move(start,pocket,t,0,0.16);
-                    if (t < 0.20) return pocket;
-                    if (t < 0.36) return move(pocket,gate,t,0.20,0.36);
-                }
-                if (t < 0.48) return move(gate,outside,t,0.36,0.48);
-                if (t < 0.65) return move(outside,socket,t,0.48,0.65);
-                if (t < 0.74) return socket;
-                if (t < 0.86) return move(socket,outside,t,0.74,0.86);
-                if (t < 0.94) return move(outside,gate,t,0.86,0.94);
-                return move(gate,rest,t,0.94,1);
+    /** A short placement from the nearby work edge. Film clears the top rear; lenses still twist. */
+    public record Placement(Part part, Point start, Point rest, Point take, Point socket, Point outside,
+                            Point gate, boolean alreadyHolding) {
+        public Point hand(double t) {
+            Point approach = part == Part.FILM ? gate : outside;
+            if (alreadyHolding) {
+                if (t < .30) return move(start,approach,t,0,.30);
+            } else {
+                if (t < .16) return move(start,take,t,0,.16);
+                if (t < .30) return move(take,approach,t,.16,.30);
             }
-            if (t < 0.16) return move(start,gate,t,0,0.16);
-            if (t < 0.28) return move(gate,outside,t,0.16,0.28);
-            if (t < 0.43) return move(outside,socket,t,0.28,0.43);
-            if (t < 0.50) return socket;
-            if (t < 0.68) return move(socket,outside,t,0.50,0.68);
-            if (t < 0.82) return move(outside,gate,t,0.68,0.82);
-            return move(gate,rest,t,0.82,1);
+            if (part == Part.FILM) {
+                if (t < .46) return move(gate,outside,t,.30,.46);
+                if (t < .62) return move(outside,socket,t,.46,.62);
+            } else if (t < .54) return move(outside,socket,t,.30,.54);
+            if (t <= CONTACT) return socket;
+            if (part == Part.FILM) {
+                if (t < .82) return move(socket,outside,t,CONTACT,.82);
+                if (t < .92) return move(outside,gate,t,.82,.92);
+                return move(gate,rest,t,.92,1);
+            }
+            if (part == Part.FLASH) {
+                if (t < .84) return move(socket,outside,t,CONTACT,.84);
+                return move(outside,rest,t,.84,1);
+            }
+            return move(socket,rest,t,CONTACT,1);
+        }
+        public double itemScale(double t) { return alreadyHolding ? 1 : ease((t-.10)/.06); }
+        public double twist(double t) {
+            return part == Part.LENS || part == Part.FILTER ? 90*ease((t-.54)/(CONTACT-.54)) : 0;
         }
     }
 }
